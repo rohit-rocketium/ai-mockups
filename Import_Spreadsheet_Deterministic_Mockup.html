@@ -1,0 +1,483 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Import Spreadsheet - Deterministic Flow</title>
+<style>
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f0f0f5;color:#1a1a2e}
+
+  .screen-nav{position:fixed;top:0;left:0;right:0;z-index:100;background:#1a1a2e;color:#fff;display:flex;align-items:center;padding:0 16px;height:52px;gap:4px;box-shadow:0 2px 12px rgba(0,0,0,.25)}
+  .screen-nav .label{font-size:12px;opacity:.5;margin-right:6px;white-space:nowrap}
+  .screen-nav button{background:transparent;border:1.5px solid rgba(255,255,255,.15);color:#fff;padding:5px 12px;border-radius:20px;font-size:11px;cursor:pointer;transition:.2s;white-space:nowrap}
+  .screen-nav button:hover{background:rgba(255,255,255,.08)}
+  .screen-nav button.active{background:#7c5cfc;border-color:#7c5cfc;font-weight:600}
+  .screens-wrapper{padding-top:64px}.screen{display:none}.screen.active{display:block}
+
+  .frame{margin:12px auto;max-width:1340px;border:2.5px solid #7c5cfc;border-radius:18px;overflow:hidden;background:#fff;box-shadow:0 8px 40px rgba(124,92,252,.12)}
+  .topbar{display:flex;justify-content:space-between;align-items:center;padding:10px 20px;border-bottom:1px solid #eee;background:#fafafc}
+  .topbar-left{display:flex;align-items:center;gap:10px}
+  .topbar-left .logo{display:inline-flex;align-items:center;gap:6px;font-weight:700;font-size:15px}
+  .topbar-left .logo .badge{background:#7c5cfc;color:#fff;font-size:9px;padding:2px 7px;border-radius:6px;font-weight:700}
+  .topbar-title{font-size:13px;font-weight:600;color:#444;margin-left:4px}
+  .topbar-right{display:flex;align-items:center;gap:5px}
+  .tab-btn{padding:4px 12px;font-size:11px;font-weight:600;border-radius:8px;cursor:pointer;border:none;background:transparent;color:#888;transition:.15s}
+  .tab-btn.active{background:#1a1a2e;color:#fff}
+  .icon-btn{width:28px;height:28px;border-radius:8px;border:1px solid #ddd;display:inline-flex;align-items:center;justify-content:center;font-size:13px;cursor:pointer;background:#fff;color:#666}
+  .layout{display:flex;min-height:580px}
+
+  .panel-left{width:330px;min-width:330px;border-right:1px solid #eee;display:flex;flex-direction:column;background:#fff}
+  .chat-body{flex:1;overflow-y:auto;padding:14px}
+  .chat-input-area{padding:10px 14px;border-top:1px solid #eee}
+  .chat-input{display:flex;align-items:center;border:1.5px solid #e0e0e0;border-radius:14px;padding:8px 12px;gap:8px;background:#fafafc}
+  .chat-input input{flex:1;border:none;background:transparent;font-size:12px;outline:none;color:#333}
+  .chat-input .send{width:26px;height:26px;border-radius:50%;background:#7c5cfc;color:#fff;border:none;font-size:12px;cursor:pointer;display:flex;align-items:center;justify-content:center}
+
+  .msg{margin-bottom:12px}
+  .msg.user .bubble{background:#f0edff;border-radius:14px 14px 4px 14px;padding:9px 13px;font-size:12.5px;line-height:1.5}
+  .msg.user .file-chip{display:inline-flex;align-items:center;gap:5px;background:#fff;border:1px solid #e0e0e0;border-radius:10px;padding:5px 10px;margin-top:5px;font-size:11px}
+  .msg.user .file-chip .ficon{width:24px;height:24px;border-radius:5px;background:linear-gradient(135deg,#22c55e,#16a34a);display:flex;align-items:center;justify-content:center;font-size:9px;color:#fff;font-weight:700;flex-shrink:0}
+  .msg.ai{display:flex;gap:7px}
+  .msg.ai .avatar{width:24px;height:24px;border-radius:50%;background:linear-gradient(135deg,#f87171,#fb923c);flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:10px;color:#fff;font-weight:700}
+  .msg.ai .bubble{background:#fff;border:1px solid #eee;border-radius:4px 14px 14px 14px;padding:9px 13px;font-size:12.5px;line-height:1.5;color:#333}
+
+  .speed-badge{display:inline-flex;align-items:center;gap:4px;background:#ecfdf5;border:1px solid #a7f3d0;color:#065f46;font-size:10px;font-weight:600;padding:3px 8px;border-radius:6px;margin-bottom:8px}
+  .speed-badge svg{width:12px;height:12px}
+
+  /* Plan card */
+  .plan-box{background:#fff;border:1px solid #e8e8ee;border-radius:14px;margin-bottom:12px;overflow:hidden}
+  .plan-header{display:flex;justify-content:space-between;align-items:center;padding:9px 13px;border-bottom:1px solid #f3f3f8}
+  .plan-header .p-title{font-size:12.5px;font-weight:600;display:flex;align-items:center;gap:6px}
+  .plan-header .p-title svg{width:14px;height:14px;color:#7c5cfc}
+  .plan-header .p-count{font-size:10.5px;color:#888;background:#f3f3f8;padding:2px 8px;border-radius:10px;font-weight:600}
+  .plan-steps{padding:6px 13px 10px}
+  .plan-step{display:flex;align-items:flex-start;gap:7px;padding:5px 0;font-size:12px;line-height:1.4}
+  .ck{width:18px;height:18px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:9px;margin-top:1px}
+  .ck.done{background:#22c55e;color:#fff}
+  .ck.active{border:2px solid #7c5cfc;background:#fff;position:relative}
+  .ck.active::after{content:'';width:7px;height:7px;border-radius:50%;background:#7c5cfc;animation:pulse-d 1.2s ease-in-out infinite}
+  @keyframes pulse-d{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.4;transform:scale(.7)}}
+  .ck.pending{background:#f0f0f5;border:1.5px solid #d1d5db}
+  .tx{color:#444}.tx.done-t{color:#aaa;text-decoration:line-through}.tx.active-t{font-weight:600;color:#7c5cfc}
+
+  .status-bar{display:flex;align-items:center;gap:8px;padding:8px 12px;border-radius:10px;font-size:12px;font-weight:500;margin-bottom:12px}
+  .status-bar.success{background:#f0fdf4;border:1px solid #bbf7d0;color:#166534}
+  .status-bar.awaiting{background:#fffbeb;border:1px solid #fde68a;color:#92400e}
+  .status-bar.running{background:#eff6ff;border:1px solid #bfdbfe;color:#1e40af}
+  .status-bar .s-icon{width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+  .status-bar.success .s-icon{background:#22c55e}
+  .status-bar.awaiting .s-icon{background:#f59e0b}
+  .status-bar.running .s-icon{background:#3b82f6}
+  .status-bar .s-icon svg{width:12px;height:12px}
+
+  /* Right panel */
+  .panel-right{flex:1;display:flex;flex-direction:column;background:#f7f7fb;overflow:hidden}
+  .rp-view{display:none;flex:1;overflow-y:auto}
+  .rp-view.active{display:block}
+
+  /* Activity log */
+  .ap{padding:18px 22px}
+  .le{display:flex;gap:10px;margin-bottom:14px;position:relative}
+  .le::before{content:'';position:absolute;left:12px;top:26px;bottom:-14px;width:1.5px;background:#e0e0e8}
+  .le:last-child::before{display:none}
+  .li{width:26px;height:26px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;z-index:1}
+  .li.det{background:#fef3c7;color:#d97706}
+  .li.tl{background:#dbeafe;color:#3b82f6}
+  .li.ok{background:#dcfce7;color:#16a34a}
+  .li.art{background:#ede9fe;color:#7c3aed}
+  .li.spin{border:2.5px solid #e0e0e8;border-top-color:#3b82f6;animation:spin .7s linear infinite;background:transparent}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .lb{flex:1;min-width:0}
+  .ll{font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;margin-bottom:2px}
+  .ll.det-l{color:#d97706}.ll.tl-l{color:#3b82f6}.ll.ok-l{color:#16a34a}.ll.art-l{color:#7c3aed}
+  .lt{font-size:12px;line-height:1.5;color:#444}
+  .lt code{background:#f1f5f9;padding:1px 4px;border-radius:3px;font-family:'SF Mono',monospace;font-size:10.5px;color:#334155}
+  .lc{margin-top:5px;background:#fff;border:1px solid #e8e8ee;border-radius:9px;padding:8px 12px;font-size:11.5px;line-height:1.45}
+  .kv{display:flex;gap:7px;padding:1.5px 0}.kv .k{color:#888;min-width:72px;font-weight:500;font-size:11px}.kv .v{color:#333;word-break:break-all;font-size:11.5px}
+
+  /* Artifact / Preview */
+  .art-header{display:flex;align-items:center;justify-content:space-between;padding:10px 20px;border-bottom:1px solid #eee;background:#fff}
+  .art-type{display:flex;align-items:center;gap:8px}
+  .atb{font-size:10px;font-weight:700;padding:3px 10px;border-radius:6px;text-transform:uppercase;letter-spacing:.5px}
+  .atb.import{background:#dcfce7;color:#166534}
+  .atb.edit{background:#dbeafe;color:#1e40af}
+  .art-title{font-size:13px;font-weight:600;color:#1a1a2e}
+  .art-body{padding:18px 20px}
+
+  .mapping-table{width:100%;border-collapse:separate;border-spacing:0;border:1px solid #e8e8ee;border-radius:10px;overflow:hidden;font-size:12px}
+  .mapping-table thead th{background:#f8f8fc;padding:8px 12px;text-align:left;font-weight:600;color:#555;border-bottom:1px solid #e8e8ee;font-size:11px;text-transform:uppercase;letter-spacing:.3px}
+  .mapping-table tbody td{padding:7px 12px;border-bottom:1px solid #f3f3f8;color:#333}
+  .mapping-table tbody tr:last-child td{border-bottom:none}
+  .mapping-table tbody tr:hover{background:#faf8ff}
+  .layer-type{font-size:10px;font-weight:600;padding:2px 6px;border-radius:4px;display:inline-block}
+  .layer-type.text{background:#dbeafe;color:#1e40af}
+  .layer-type.image{background:#fce7f3;color:#be185d}
+  .map-arrow{color:#22c55e;font-weight:700}
+  .confirm-bar{display:flex;align-items:center;justify-content:space-between;padding:12px 20px;border-top:1px solid #eee;background:#fff}
+  .confirm-bar .info{font-size:12px;color:#666}
+  .confirm-bar .btns{display:flex;gap:8px}
+  .btn{padding:7px 18px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;border:none;font-family:inherit;transition:.15s}
+  .btn.outline{background:#fff;border:1.5px solid #e0e0e0;color:#555}
+  .btn.primary{background:#7c5cfc;color:#fff}
+  .btn.green{background:#22c55e;color:#fff}
+
+  .success-panel{text-align:center;padding:40px 30px}
+  .success-icon{width:64px;height:64px;border-radius:50%;background:#dcfce7;margin:0 auto 16px;display:flex;align-items:center;justify-content:center}
+  .success-title{font-size:18px;font-weight:700;color:#1a1a2e;margin-bottom:6px}
+  .success-sub{font-size:13px;color:#666;margin-bottom:20px;line-height:1.5}
+  .success-stats{display:flex;justify-content:center;gap:24px;margin-bottom:24px}
+  .stat-card{background:#f8f8fc;border:1px solid #e8e8ee;border-radius:10px;padding:14px 20px;min-width:110px}
+  .stat-num{font-size:24px;font-weight:800;color:#7c5cfc}
+  .stat-label{font-size:11px;color:#888;margin-top:2px}
+  .project-link{display:inline-flex;align-items:center;gap:8px;background:#f8f8fc;border:1px solid #e8e8ee;border-radius:10px;padding:10px 16px;font-size:12px;color:#555;margin-top:8px}
+  .project-link strong{color:#1a1a2e}
+
+  /* empty state for preview */
+  .empty-preview{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;color:#aaa;gap:8px;padding:40px}
+  .empty-preview svg{width:48px;height:48px;opacity:.3}
+  .empty-preview span{font-size:13px}
+
+  ::-webkit-scrollbar{width:5px}::-webkit-scrollbar-thumb{background:#d1d5db;border-radius:10px}
+</style>
+</head>
+<body>
+
+<div class="screen-nav">
+  <span class="label">SCREENS:</span>
+  <button class="active" onclick="showScreen('s1',this)">1. Preparing</button>
+  <button onclick="showScreen('s2',this)">2. Mapping Review</button>
+  <button onclick="showScreen('s3',this)">3. Import Complete</button>
+</div>
+
+<div class="screens-wrapper">
+
+<!-- ═════════════════════════════════════════════════ -->
+<!-- SCREEN 1: Preparing                              -->
+<!-- ═════════════════════════════════════════════════ -->
+<div class="screen active" id="s1">
+<div class="frame">
+  <div class="topbar">
+    <div class="topbar-left"><div class="logo">Ask <span class="badge">AI</span></div><div class="topbar-title">Spreadsheet CSV Import</div></div>
+    <div class="topbar-right">
+      <button class="tab-btn active" onclick="switchTab('s1','activity',this)">Activity</button>
+      <button class="tab-btn" onclick="switchTab('s1','preview',this)">Preview</button>
+      <span class="icon-btn">+</span><span class="icon-btn">&times;</span>
+    </div>
+  </div>
+  <div class="layout">
+    <div class="panel-left">
+      <div class="chat-body">
+        <div class="msg user">
+          <div class="bubble">Import spreadsheet
+            <div class="file-chip"><div class="ficon">CSV</div><div><div style="font-weight:500">Fresh.csv</div><div style="font-size:10px;color:#94a3b8">text/csv</div></div></div>
+          </div>
+        </div>
+        <div class="plan-box">
+          <div class="plan-header"><div class="p-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/></svg>Plan of action</div><div class="p-count">1 / 3</div></div>
+          <div class="plan-steps">
+            <div class="plan-step"><div class="ck active"><div></div></div><span class="tx active-t">Prepare spreadsheet mapping</span></div>
+            <div class="plan-step"><div class="ck pending"></div><span class="tx">Review &amp; confirm column mapping</span></div>
+            <div class="plan-step"><div class="ck pending"></div><span class="tx">Execute import &amp; create variants</span></div>
+          </div>
+        </div>
+        <div class="msg ai"><div class="avatar">R</div><div class="bubble">Processing your spreadsheet. Preparing column-to-layer mapping...</div></div>
+        <div class="status-bar running">
+          <div class="s-icon"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5"><path d="M12 2v4m0 12v4M4.93 4.93l2.83 2.83m8.48 8.48l2.83 2.83M2 12h4m12 0h4M4.93 19.07l2.83-2.83m8.48-8.48l2.83-2.83"/></svg></div>
+          Running <b>prepareSpreadsheetImport</b>...
+        </div>
+      </div>
+      <div class="chat-input-area"><div class="chat-input"><span style="font-size:15px;opacity:.4;cursor:pointer">&#128206;</span><input type="text" placeholder="Ask AI..."><button class="send">&#9654;</button></div></div>
+    </div>
+    <div class="panel-right">
+      <!-- Activity -->
+      <div class="rp-view active" data-screen="s1" data-tab="activity">
+        <div class="ap">
+          <div class="le">
+            <div class="li det">&#9889;</div>
+            <div class="lb">
+              <div class="ll det-l">Classifier</div>
+              <div class="lt">Detected <b>"Import spreadsheet"</b> + CSV &rarr; direct tool invocation</div>
+              <div class="lc" style="background:#fffbeb;border-color:#fde68a">
+                <div class="kv"><span class="k">Trigger</span><span class="v">Prompt + CSV attachment</span></div>
+                <div class="kv"><span class="k">Tool</span><span class="v"><code>prepareSpreadsheetImport</code></span></div>
+              </div>
+            </div>
+          </div>
+          <div class="le">
+            <div class="li spin"></div>
+            <div class="lb">
+              <div class="ll tl-l">prepareSpreadsheetImport</div>
+              <div class="lt">Parsing CSV and mapping columns to project layers...</div>
+              <div class="lc">
+                <div class="kv"><span class="k">CSV</span><span class="v"><code>Fresh.csv</code></span></div>
+                <div class="kv"><span class="k">Project</span><span class="v">Fresh</span></div>
+                <div class="kv"><span class="k">Status</span><span class="v" style="color:#3b82f6;font-weight:600">Processing...</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <!-- Preview (empty at this stage) -->
+      <div class="rp-view" data-screen="s1" data-tab="preview">
+        <div class="empty-preview">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 15l5-5 4 4 4-4 5 5"/></svg>
+          <span>Preview will appear once the mapping is ready</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+
+<!-- ═════════════════════════════════════════════════ -->
+<!-- SCREEN 2: Mapping Review                         -->
+<!-- ═════════════════════════════════════════════════ -->
+<div class="screen" id="s2">
+<div class="frame">
+  <div class="topbar">
+    <div class="topbar-left"><div class="logo">Ask <span class="badge">AI</span></div><div class="topbar-title">Spreadsheet CSV Import</div></div>
+    <div class="topbar-right">
+      <button class="tab-btn" onclick="switchTab('s2','activity',this)">Activity</button>
+      <button class="tab-btn active" onclick="switchTab('s2','preview',this)">Preview</button>
+      <span class="icon-btn">+</span><span class="icon-btn">&times;</span>
+    </div>
+  </div>
+  <div class="layout">
+    <div class="panel-left">
+      <div class="chat-body">
+        <div class="msg user">
+          <div class="bubble">Import spreadsheet
+            <div class="file-chip"><div class="ficon">CSV</div><div><div style="font-weight:500">Fresh.csv</div><div style="font-size:10px;color:#94a3b8">text/csv</div></div></div>
+          </div>
+        </div>
+        <div class="plan-box">
+          <div class="plan-header"><div class="p-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/></svg>Plan of action</div><div class="p-count">2 / 3</div></div>
+          <div class="plan-steps">
+            <div class="plan-step"><div class="ck done"><svg width="10" height="10" fill="none" stroke="#fff" stroke-width="2.5" viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg></div><span class="tx done-t">Prepare spreadsheet mapping</span></div>
+            <div class="plan-step"><div class="ck active"><div></div></div><span class="tx active-t">Review &amp; confirm column mapping</span></div>
+            <div class="plan-step"><div class="ck pending"></div><span class="tx">Execute import &amp; create variants</span></div>
+          </div>
+        </div>
+        <div class="msg ai"><div class="avatar">R</div><div class="bubble"><b>Spreadsheet import prepared.</b><br>Mapped 12 columns to 10 project layers. Review the mapping and confirm to proceed.</div></div>
+        <div class="status-bar awaiting">
+          <div class="s-icon"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5"><path d="M12 9v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg></div>
+          Awaiting your confirmation to import
+        </div>
+      </div>
+      <div class="chat-input-area"><div class="chat-input"><span style="font-size:15px;opacity:.4;cursor:pointer">&#128206;</span><input type="text" placeholder="Ask AI..." value="Proceed with the import"><button class="send">&#9654;</button></div></div>
+    </div>
+    <div class="panel-right">
+      <!-- Activity -->
+      <div class="rp-view" data-screen="s2" data-tab="activity">
+        <div class="ap">
+          <div class="le">
+            <div class="li det">&#9889;</div>
+            <div class="lb">
+              <div class="ll det-l">Classifier</div>
+              <div class="lt">Detected <b>"Import spreadsheet"</b> + CSV &rarr; direct tool invocation</div>
+            </div>
+          </div>
+          <div class="le">
+            <div class="li ok">&#10003;</div>
+            <div class="lb">
+              <div class="ll tl-l">prepareSpreadsheetImport</div>
+              <div class="lt">Parsed CSV and created column-to-layer mapping</div>
+              <div class="lc">
+                <div class="kv"><span class="k">Columns</span><span class="v">12 detected</span></div>
+                <div class="kv"><span class="k">Layers</span><span class="v">10 matched (2 TEXT, 8 IMAGE)</span></div>
+                <div class="kv"><span class="k">Rows</span><span class="v">6 data rows</span></div>
+                <div class="kv"><span class="k">Status</span><span class="v" style="color:#16a34a;font-weight:600">Done</span></div>
+              </div>
+            </div>
+          </div>
+          <div class="le">
+            <div class="li art">&#9679;</div>
+            <div class="lb">
+              <div class="ll art-l">Artifact Created</div>
+              <div class="lt">IMPORT_SPREADSHEET_MAPPING &mdash; awaiting user confirmation</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <!-- Preview: Mapping table -->
+      <div class="rp-view active" data-screen="s2" data-tab="preview">
+        <div class="art-header">
+          <div class="art-type"><span class="atb import">Import Mapping</span><span class="art-title">Fresh.csv &rarr; Fresh Project</span></div>
+          <div style="font-size:11px;color:#888">12 columns &middot; 10 layers &middot; 6 rows</div>
+        </div>
+        <div class="art-body">
+          <table class="mapping-table">
+            <thead><tr><th>CSV Column</th><th></th><th>Project Layer</th><th>Type</th></tr></thead>
+            <tbody>
+              <tr><td>TC apply</td><td class="map-arrow">&rarr;</td><td>TC apply</td><td><span class="layer-type text">TEXT</span></td></tr>
+              <tr><td>Shop now</td><td class="map-arrow">&rarr;</td><td>Shop now</td><td><span class="layer-type text">TEXT</span></td></tr>
+              <tr><td>strip big</td><td class="map-arrow">&rarr;</td><td>strip big</td><td><span class="layer-type image">IMAGE</span></td></tr>
+              <tr><td>Logo</td><td class="map-arrow">&rarr;</td><td>Logo</td><td><span class="layer-type image">IMAGE</span></td></tr>
+              <tr><td>Super value</td><td class="map-arrow">&rarr;</td><td>Super value</td><td><span class="layer-type image">IMAGE</span></td></tr>
+              <tr><td>strip small</td><td class="map-arrow">&rarr;</td><td>strip small</td><td><span class="layer-type image">IMAGE</span></td></tr>
+              <tr><td>Offer</td><td class="map-arrow">&rarr;</td><td>Offer</td><td><span class="layer-type image">IMAGE</span></td></tr>
+              <tr><td>ref</td><td class="map-arrow">&rarr;</td><td>ref</td><td><span class="layer-type image">IMAGE</span></td></tr>
+              <tr><td>Image 1</td><td class="map-arrow">&rarr;</td><td>Image 1</td><td><span class="layer-type image">IMAGE</span></td></tr>
+              <tr><td>Image 2</td><td class="map-arrow">&rarr;</td><td>Image 2</td><td><span class="layer-type image">IMAGE</span></td></tr>
+              <tr style="color:#aaa"><td>Variation Name</td><td>&rarr;</td><td colspan="2"><i>Row identifier</i></td></tr>
+              <tr style="color:#aaa"><td>Design Source</td><td>&rarr;</td><td colspan="2"><i>Metadata</i></td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="confirm-bar">
+          <div class="info"><span style="color:#d97706">&#9888;</span> Review the mapping. Click <b>Confirm Import</b> to apply.</div>
+          <div class="btns"><button class="btn outline">Edit Mapping</button><button class="btn green">&#10003; Confirm Import</button></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+
+<!-- ═════════════════════════════════════════════════ -->
+<!-- SCREEN 3: Import Complete                        -->
+<!-- ═════════════════════════════════════════════════ -->
+<div class="screen" id="s3">
+<div class="frame">
+  <div class="topbar">
+    <div class="topbar-left"><div class="logo">Ask <span class="badge">AI</span></div><div class="topbar-title">Spreadsheet CSV Import</div></div>
+    <div class="topbar-right">
+      <button class="tab-btn" onclick="switchTab('s3','activity',this)">Activity</button>
+      <button class="tab-btn active" onclick="switchTab('s3','preview',this)">Preview</button>
+      <span class="icon-btn">+</span><span class="icon-btn">&times;</span>
+    </div>
+  </div>
+  <div class="layout">
+    <div class="panel-left">
+      <div class="chat-body">
+        <div class="msg user">
+          <div class="bubble">Import spreadsheet
+            <div class="file-chip"><div class="ficon">CSV</div><div><div style="font-weight:500">Fresh.csv</div></div></div>
+          </div>
+        </div>
+        <div class="plan-box">
+          <div class="plan-header"><div class="p-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/></svg>Plan of action</div><div class="p-count">3 / 3</div></div>
+          <div class="plan-steps">
+            <div class="plan-step"><div class="ck done"><svg width="10" height="10" fill="none" stroke="#fff" stroke-width="2.5" viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg></div><span class="tx done-t">Prepare spreadsheet mapping</span></div>
+            <div class="plan-step"><div class="ck done"><svg width="10" height="10" fill="none" stroke="#fff" stroke-width="2.5" viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg></div><span class="tx done-t">Review &amp; confirm column mapping</span></div>
+            <div class="plan-step"><div class="ck done"><svg width="10" height="10" fill="none" stroke="#fff" stroke-width="2.5" viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg></div><span class="tx done-t">Execute import &amp; create variants</span></div>
+          </div>
+        </div>
+        <div class="msg ai"><div class="avatar">R</div><div class="bubble"><b>Spreadsheet import prepared.</b> Review the mapping and confirm.</div></div>
+        <div class="msg user"><div class="bubble">Proceed with the import</div></div>
+        <div class="msg ai"><div class="avatar">R</div><div class="bubble"><b>Import completed successfully.</b> 1 variant updated, 5 new variants added. Your project is ready for editing.</div></div>
+        <div class="status-bar success">
+          <div class="s-icon"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5"><path d="M20 6L9 17l-5-5"/></svg></div>
+          Done! 6 variants &middot; 14 sizes &middot; 10 layers
+        </div>
+      </div>
+      <div class="chat-input-area"><div class="chat-input"><span style="font-size:15px;opacity:.4;cursor:pointer">&#128206;</span><input type="text" placeholder="Ask AI..."><button class="send">&#9654;</button></div></div>
+    </div>
+    <div class="panel-right">
+      <!-- Activity -->
+      <div class="rp-view" data-screen="s3" data-tab="activity">
+        <div class="ap">
+          <div class="le">
+            <div class="li det">&#9889;</div>
+            <div class="lb">
+              <div class="ll det-l">Classifier</div>
+              <div class="lt">Detected <b>"Import spreadsheet"</b> + CSV &rarr; direct tool invocation</div>
+            </div>
+          </div>
+          <div class="le">
+            <div class="li ok">&#10003;</div>
+            <div class="lb">
+              <div class="ll tl-l">prepareSpreadsheetImport</div>
+              <div class="lt">Parsed CSV and created column-to-layer mapping</div>
+              <div class="lc">
+                <div class="kv"><span class="k">Columns</span><span class="v">12 detected</span></div>
+                <div class="kv"><span class="k">Layers</span><span class="v">10 matched (2 TEXT, 8 IMAGE)</span></div>
+              </div>
+            </div>
+          </div>
+          <div class="le">
+            <div class="li art">&#9679;</div>
+            <div class="lb">
+              <div class="ll art-l">Mapping Artifact</div>
+              <div class="lt">IMPORT_SPREADSHEET_MAPPING &mdash; user confirmed</div>
+            </div>
+          </div>
+          <div class="le">
+            <div class="li ok">&#10003;</div>
+            <div class="lb">
+              <div class="ll tl-l">executeSpreadsheetImport</div>
+              <div class="lt">Applied spreadsheet data to project</div>
+              <div class="lc">
+                <div class="kv"><span class="k">Updated</span><span class="v">1 variant</span></div>
+                <div class="kv"><span class="k">Created</span><span class="v">5 new variants</span></div>
+                <div class="kv"><span class="k">Sizes</span><span class="v">14 creative formats</span></div>
+              </div>
+            </div>
+          </div>
+          <div class="le">
+            <div class="li ok">&#10003;</div>
+            <div class="lb">
+              <div class="ll tl-l">postSpreadsheetImport</div>
+              <div class="lt">Finalized import and prepared variant editor</div>
+              <div class="lc">
+                <div class="kv"><span class="k">Project</span><span class="v">Fresh (1MexGr5TdJfy-908)</span></div>
+                <div class="kv"><span class="k">Action</span><span class="v">Navigate to EDIT_VARIANTS</span></div>
+              </div>
+            </div>
+          </div>
+          <div class="le">
+            <div class="li ok" style="background:#7c5cfc;color:#fff">&#10003;</div>
+            <div class="lb">
+              <div class="ll ok-l">Complete</div>
+              <div class="lt">Workflow finished &mdash; 6 variants ready for editing</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <!-- Preview: Success -->
+      <div class="rp-view active" data-screen="s3" data-tab="preview">
+        <div class="art-header">
+          <div class="art-type"><span class="atb edit">Edit Variants</span><span class="art-title">Fresh &mdash; Import Complete</span></div>
+        </div>
+        <div class="success-panel">
+          <div class="success-icon"><svg viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg></div>
+          <div class="success-title">Spreadsheet Imported Successfully</div>
+          <div class="success-sub">Fresh.csv has been applied to your project across 14 creative sizes.</div>
+          <div class="success-stats">
+            <div class="stat-card"><div class="stat-num">1</div><div class="stat-label">Updated</div></div>
+            <div class="stat-card"><div class="stat-num">5</div><div class="stat-label">New variants</div></div>
+            <div class="stat-card"><div class="stat-num">14</div><div class="stat-label">Creative sizes</div></div>
+            <div class="stat-card"><div class="stat-num">10</div><div class="stat-label">Layers mapped</div></div>
+          </div>
+          <button class="btn primary" style="font-size:13px;padding:10px 28px">Open Variant Editor &rarr;</button>
+          <div class="project-link">Project: <strong>Fresh</strong> &middot; ID: 1MexGr5TdJfy-908</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+
+</div>
+
+<script>
+function showScreen(id, btn) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  document.querySelectorAll('.screen-nav button').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+}
+
+function switchTab(screenId, tab, btn) {
+  // Toggle tab buttons within the same topbar
+  btn.closest('.topbar-right').querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  // Toggle right-panel views
+  document.querySelectorAll(`.rp-view[data-screen="${screenId}"]`).forEach(v => {
+    v.classList.toggle('active', v.dataset.tab === tab);
+  });
+}
+</script>
+</body>
+</html>

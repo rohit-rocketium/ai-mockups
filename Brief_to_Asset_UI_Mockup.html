@@ -1,0 +1,647 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Brief to Asset — Full Workflow UI</title>
+<style>
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f0f0f5;color:#1a1a2e}
+  .screen-nav{position:fixed;top:0;left:0;right:0;z-index:100;background:#1a1a2e;color:#fff;display:flex;align-items:center;padding:0 16px;height:52px;gap:4px;box-shadow:0 2px 12px rgba(0,0,0,.25);overflow-x:auto}
+  .screen-nav .label{font-size:12px;opacity:.5;margin-right:6px;white-space:nowrap}
+  .screen-nav button{background:transparent;border:1.5px solid rgba(255,255,255,.15);color:#fff;padding:5px 12px;border-radius:20px;font-size:11px;cursor:pointer;transition:.2s;white-space:nowrap;flex-shrink:0}
+  .screen-nav button:hover{background:rgba(255,255,255,.08)}
+  .screen-nav button.active{background:#7c5cfc;border-color:#7c5cfc;font-weight:600}
+  .screens-wrapper{padding-top:64px}.screen{display:none}.screen.active{display:block}
+  .frame{margin:12px auto;max-width:1340px;border:2.5px solid #7c5cfc;border-radius:18px;overflow:hidden;background:#fff;box-shadow:0 8px 40px rgba(124,92,252,.12)}
+  .topbar{display:flex;justify-content:space-between;align-items:center;padding:10px 20px;border-bottom:1px solid #eee;background:#fafafc}
+  .topbar-left{display:flex;align-items:center;gap:10px}
+  .topbar-left .logo{display:inline-flex;align-items:center;gap:6px;font-weight:700;font-size:15px}
+  .topbar-left .logo .badge{background:#7c5cfc;color:#fff;font-size:9px;padding:2px 7px;border-radius:6px;font-weight:700}
+  .topbar-title{font-size:13px;font-weight:600;color:#444;margin-left:4px}
+  .topbar-right{display:flex;align-items:center;gap:5px}
+  .tab-btn{padding:4px 12px;font-size:11px;font-weight:600;border-radius:8px;cursor:pointer;border:none;background:transparent;color:#888;transition:.15s}
+  .tab-btn.active{background:#1a1a2e;color:#fff}
+  .tab-btn.has-new{position:relative}
+  .tab-btn.has-new::after{content:'';position:absolute;top:2px;right:2px;width:6px;height:6px;border-radius:50%;background:#f43f5e}
+  .icon-btn{width:28px;height:28px;border-radius:8px;border:1px solid #ddd;display:inline-flex;align-items:center;justify-content:center;font-size:13px;cursor:pointer;background:#fff;color:#666}
+  .layout{display:flex;min-height:580px}
+  .panel-left{width:330px;min-width:330px;border-right:1px solid #eee;display:flex;flex-direction:column;background:#fff}
+  .panel-right{flex:1;display:flex;flex-direction:column;background:#f7f7fb;overflow:hidden;position:relative}
+  .rp{position:absolute;inset:0;overflow-y:auto;transition:opacity .2s}
+  .rp.hidden{opacity:0;pointer-events:none;position:absolute}
+  .rp.visible{opacity:1;pointer-events:auto;position:relative}
+  .chat-body{flex:1;overflow-y:auto;padding:14px}
+  .chat-input-area{padding:10px 14px;border-top:1px solid #eee}
+  .chat-input{display:flex;align-items:center;border:1.5px solid #e0e0e0;border-radius:14px;padding:8px 12px;gap:8px;background:#fafafc}
+  .chat-input input{flex:1;border:none;background:transparent;font-size:12px;outline:none;color:#333}
+  .chat-input .attach{font-size:15px;opacity:.4;cursor:pointer}
+  .chat-input .send{width:26px;height:26px;border-radius:50%;background:#7c5cfc;color:#fff;border:none;font-size:12px;cursor:pointer;display:flex;align-items:center;justify-content:center}
+  .msg{margin-bottom:12px}
+  .msg.user .bubble{background:#f0edff;border-radius:14px 14px 4px 14px;padding:9px 13px;font-size:12.5px;line-height:1.5}
+  .msg.user .file-chip{display:inline-flex;align-items:center;gap:5px;background:#fff;border:1px solid #e0e0e0;border-radius:10px;padding:5px 10px;margin-top:5px;font-size:11px}
+  .msg.ai{display:flex;gap:7px}
+  .msg.ai .avatar{width:24px;height:24px;border-radius:50%;background:linear-gradient(135deg,#f87171,#fb923c);flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:10px;color:#fff;font-weight:700}
+  .msg.ai .bubble{background:#fff;border:1px solid #eee;border-radius:4px 14px 14px 14px;padding:9px 13px;font-size:12.5px;line-height:1.5;color:#333}
+  .plan-box{background:#fff;border:1px solid #e8e8ee;border-radius:14px;margin-bottom:12px;overflow:hidden}
+  .plan-header{display:flex;justify-content:space-between;align-items:center;padding:9px 13px}
+  .plan-header .title{font-size:12.5px;font-weight:600}.plan-header .count{font-size:10.5px;color:#888}
+  .plan-steps{padding:0 13px 10px}
+  .plan-step{display:flex;align-items:flex-start;gap:7px;padding:4px 0;font-size:12px;line-height:1.4}
+  .ck{width:17px;height:17px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:9px;margin-top:1px}
+  .ck.done{background:#22c55e;color:#fff}.ck.pending{background:#e8e8ee;color:#aaa}
+  .ck.spin{border:2px solid #e8e8ee;border-top-color:#7c5cfc;animation:spin .8s linear infinite;background:transparent}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .tx{color:#444}.tx.mt{color:#bbb}.tx.hi{font-weight:600;color:#7c5cfc}
+  .awaiting{background:#fffbeb;border:1px solid #fde68a;border-radius:12px;padding:9px 13px;margin-bottom:12px}
+  .awaiting .lbl{font-size:9px;font-weight:700;color:#d97706;text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px}
+  .awaiting .act{display:flex;align-items:center;justify-content:space-between;font-size:12.5px;font-weight:600}
+
+  /* Activity log entries */
+  .ap{padding:18px 22px}
+  .le{display:flex;gap:10px;margin-bottom:14px;position:relative}
+  .le::before{content:'';position:absolute;left:12px;top:26px;bottom:-14px;width:1.5px;background:#e0e0e8}
+  .le:last-child::before{display:none}
+  .li{width:26px;height:26px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;z-index:1}
+  .li.ag{background:#ede9fe;color:#7c5cfc}.li.tl{background:#dbeafe;color:#3b82f6}.li.th{background:#fef3c7;color:#d97706}.li.ok{background:#dcfce7;color:#16a34a}.li.ar{background:#fce7f3;color:#db2777}.li.ua{background:#f0edff;color:#7c5cfc}.li.cl{background:#ffedd5;color:#ea580c}
+  .lb{flex:1;min-width:0}
+  .ll{font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;margin-bottom:2px}
+  .ll.ag-l{color:#7c5cfc}.ll.tl-l{color:#3b82f6}.ll.th-l{color:#d97706}.ll.ok-l{color:#16a34a}.ll.ar-l{color:#db2777}.ll.ua-l{color:#7c5cfc}.ll.cl-l{color:#ea580c}
+  .lt{font-size:12px;line-height:1.5;color:#444}
+  .lt code{background:#f1f5f9;padding:1px 4px;border-radius:3px;font-family:'SF Mono',monospace;font-size:10.5px;color:#334155}
+  .lc{margin-top:5px;background:#fff;border:1px solid #e8e8ee;border-radius:9px;padding:8px 12px;font-size:11.5px;line-height:1.45}
+  .kv{display:flex;gap:7px;padding:1.5px 0}.kv .k{color:#888;min-width:72px;font-weight:500;font-size:11px}.kv .v{color:#333;word-break:break-all;font-size:11.5px}
+
+  /* Artifact preview */
+  .art-header{display:flex;align-items:center;justify-content:space-between;padding:10px 20px;border-bottom:1px solid #eee;background:#fff}
+  .art-type{display:flex;align-items:center;gap:8px}
+  .atb{font-size:10px;font-weight:700;padding:3px 10px;border-radius:6px;text-transform:uppercase;letter-spacing:.5px}
+  .atb.cm{background:#fce7f3;color:#db2777}.atb.pc{background:#dbeafe;color:#2563eb}.atb.psd{background:#fef3c7;color:#d97706}.atb.sz{background:#dcfce7;color:#16a34a}.atb.ap{background:#ede9fe;color:#7c5cfc}
+  .art-title{font-size:13px;font-weight:600;color:#1a1a2e}
+  .art-header select{border:1px solid #ddd;border-radius:8px;padding:3px 8px;font-size:11px;background:#f7f7fb}
+  .art-body{padding:18px 20px}
+  .a-card{background:#fff;border:1px solid #e8e8ee;border-radius:12px;padding:14px 16px;margin-bottom:12px}
+  .a-card-title{font-size:12.5px;font-weight:700;color:#1a1a2e;margin-bottom:10px;display:flex;align-items:center;justify-content:space-between}
+  .a-card-title .sub{font-size:10px;font-weight:500;color:#888}
+  .a-row{display:flex;gap:8px;padding:4px 0;font-size:12px;border-bottom:1px solid #f5f5f5}
+  .a-row:last-child{border-bottom:none}
+  .a-row .a-k{color:#888;min-width:120px;font-weight:500;font-size:11px}
+  .a-row .a-v{color:#1a1a2e;flex:1;font-size:12px}
+  .a-v.green{color:#16a34a;font-weight:600}.a-v.purple{color:#7c5cfc;font-weight:700;font-size:15px}.a-v.blue{color:#2563eb}.a-v.amber{color:#d97706;font-weight:600}
+  .badge-grid{display:flex;flex-wrap:wrap;gap:5px;margin-top:4px}
+  .sb{background:#f1f5f9;border:1px solid #e2e8f0;border-radius:5px;padding:3px 8px;font-size:10.5px;font-weight:500;color:#475569}
+  .vb{background:#ede9fe;border:1px solid #c4b5fd;border-radius:5px;padding:3px 8px;font-size:10.5px;font-weight:500;color:#6d28d9}
+  .section-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#888;margin:14px 0 6px;padding-top:10px;border-top:1px solid #f0f0f0}
+  .desc-box{font-size:11.5px;line-height:1.55;color:#555;padding:10px 12px;background:#fafafc;border:1px solid #e8e8ee;border-radius:8px;margin-top:4px}
+  .tmpl-card{display:flex;gap:12px;background:#fff;border:1px solid #e8e8ee;border-radius:10px;padding:10px 12px;margin-bottom:8px}
+  .tmpl-card.selected{border-color:#7c5cfc;background:#f8f6ff}
+  .tmpl-thumb{width:48px;height:48px;border-radius:8px;background:#f1f5f9;border:1px solid #e2e8f0;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0}
+  .tmpl-name{font-size:12px;font-weight:600;color:#1a1a2e}
+  .tmpl-meta{font-size:10.5px;color:#888;margin-top:2px}
+  .ac-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+  .ac-thumb{aspect-ratio:1;border-radius:8px;background:#f1f5f9;border:1px solid #e2e8f0;display:flex;align-items:center;justify-content:center;font-size:10px;color:#999;text-align:center;padding:4px}
+  .ac-thumb.wide{aspect-ratio:16/9;grid-column:span 2}.ac-thumb.tall{aspect-ratio:9/16}
+  .ac-stats{display:flex;gap:20px;padding:10px 0}
+  .ac-stat{text-align:center}.ac-stat .num{font-size:20px;font-weight:700;color:#7c5cfc}.ac-stat .sl{font-size:10px;color:#888;margin-top:2px}
+  .ac-badge{font-size:10px;padding:3px 10px;border-radius:12px;font-weight:600}.ac-badge.green{background:#dcfce7;color:#16a34a}
+  .task-table{width:100%;border-collapse:collapse;font-size:11px;margin-top:6px}
+  .task-table th{text-align:left;font-size:10px;font-weight:600;color:#888;text-transform:uppercase;padding:4px 8px;border-bottom:1px solid #eee}
+  .task-table td{padding:5px 8px;border-bottom:1px solid #f5f5f5;color:#333}
+  .task-table td code{background:#f1f5f9;padding:1px 4px;border-radius:3px;font-size:10px}
+  .open-link{display:inline-flex;align-items:center;gap:6px;background:#7c5cfc;color:#fff;padding:8px 16px;border-radius:10px;font-size:12px;font-weight:600;cursor:pointer;border:none;margin-top:4px}
+  .screen-desc{max-width:1340px;margin:0 auto;padding:8px 18px;font-size:11.5px;color:#666;display:flex;align-items:center;gap:7px}
+  .screen-desc .num{background:#7c5cfc;color:#fff;width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;flex-shrink:0}
+  .empty-preview{display:flex;align-items:center;justify-content:center;height:100%;min-height:400px;color:#bbb;font-size:13px;font-style:italic}
+</style>
+</head>
+<body>
+<nav class="screen-nav">
+  <span class="label">Screen:</span>
+  <button class="active" onclick="show(0)">1. Query</button>
+  <button onclick="show(1)">2. Planning</button>
+  <button onclick="show(2)">3. Download Sheet</button>
+  <button onclick="show(3)">4. CAMPAIGN_MATRIX</button>
+  <button onclick="show(4)">5. PROJECT_CONFIG</button>
+  <button onclick="show(5)">6. Template Select</button>
+  <button onclick="show(6)">7. PSD_CONFIG</button>
+  <button onclick="show(7)">8. ADD_SIZES</button>
+  <button onclick="show(8)">9. Process Layouts</button>
+  <button onclick="show(9)">10. Summary</button>
+  <button onclick="show(10)">11. Asset Preview</button>
+</nav>
+<div class="screens-wrapper">
+
+<!-- ═══════════════ HELPER: Reusable left panel macro via JS ═══════════════ -->
+
+<!-- ════ S1: Query ════ -->
+<div class="screen active" id="s-0">
+<div class="screen-desc"><span class="num">1</span> User sends "Create Projects" with a Google Sheet. QueryClassifier analyzes and routes to Planner.</div>
+<div class="frame"><div class="topbar"><div class="topbar-left"><span class="logo">Ask <span class="badge">AI</span></span><span class="topbar-title">Create Projects From Spreadsheet</span></div><div class="topbar-right"><button class="tab-btn active" onclick="switchTab(this,'activity')">Activity</button><button class="tab-btn" onclick="switchTab(this,'preview')">Preview</button><button class="icon-btn">&times;</button></div></div>
+<div class="layout">
+  <div class="panel-left"><div class="chat-body">
+    <div class="msg user"><div class="bubble">Create Projects<br><span style="font-size:11px;color:#7c5cfc;word-break:break-all">https://docs.google.com/spreadsheets/d/1xgXn0vKk4OQQ.../edit?gid=1830571673</span></div><div class="file-chip"><span class="icon">&#x1F4CA;</span> Amazon_WRS.xlsx</div></div>
+  </div><div class="chat-input-area"><div class="chat-input"><span class="attach">&#x1F4CE;</span><input placeholder="Ask AI" disabled><button class="send">&#x27A4;</button></div></div></div>
+  <div class="panel-right">
+    <div class="rp visible" data-tab="activity"><div class="ap">
+      <div class="le"><div class="li cl">QC</div><div class="lb"><div class="ll cl-l">QueryClassifier &middot; Analyzing Input</div><div class="lt">Received user objective: <strong>"Create Projects"</strong> with an attached Google Sheets URL. Checking if this is a new operation requiring a multi-step plan, or a follow-up question that can be answered from existing conversation context. Evaluating attachment type, intent signals, and conversation history...</div></div></div>
+      <div class="le"><div class="li ok">&#x2713;</div><div class="lb"><div class="ll ok-l">QueryClassifier &middot; Classification Complete</div><div class="lt"><code>needsPlanning: true</code><br><code>confidence: 0.98</code><br><code>reason:</code> "New project creation workflow detected. User provided a Google Sheets URL with spreadsheet data containing campaign configuration. This requires downloading the spreadsheet, parsing the campaign matrix, creating projects, matching templates, and generating layouts. Routing to Planner agent."</div></div></div>
+    </div></div>
+    <div class="rp hidden" data-tab="preview"><div class="empty-preview">No artifacts generated yet. Activity is running...</div></div>
+  </div>
+</div></div></div>
+
+<!-- ════ S2: Planning ════ -->
+<div class="screen" id="s-1">
+<div class="screen-desc"><span class="num">2</span> Planner agent generates a 7-step execution plan with detailed reasoning for each step.</div>
+<div class="frame"><div class="topbar"><div class="topbar-left"><span class="logo">Ask <span class="badge">AI</span></span><span class="topbar-title">Create Projects From Spreadsheet</span></div><div class="topbar-right"><button class="tab-btn active" onclick="switchTab(this,'activity')">Activity</button><button class="tab-btn" onclick="switchTab(this,'preview')">Preview</button><button class="icon-btn">&times;</button></div></div>
+<div class="layout">
+  <div class="panel-left"><div class="chat-body">
+    <div class="msg user"><div class="bubble">Create Projects</div><div class="file-chip"><span class="icon">&#x1F4CA;</span> Amazon_WRS.xlsx</div></div>
+    <div class="msg ai"><div class="avatar">R</div><div class="bubble">Right on it. Let me create a plan of action and call the agents to work on it.</div></div>
+    <div class="plan-box"><div class="plan-header"><span class="title">Plan of action</span><span class="count">7 steps</span></div><div class="plan-steps">
+      <div class="plan-step"><span class="ck pending"></span><span class="tx mt">Download the Google spreadsheet</span></div>
+      <div class="plan-step"><span class="ck pending"></span><span class="tx mt">Analyze campaign matrix &amp; make brief</span></div>
+      <div class="plan-step"><span class="ck pending"></span><span class="tx mt">Create projects &amp; match templates</span></div>
+      <div class="plan-step"><span class="ck pending"></span><span class="tx mt">Import PSD templates</span></div>
+      <div class="plan-step"><span class="ck pending"></span><span class="tx mt">Add campaign sizes to each project</span></div>
+      <div class="plan-step"><span class="ck pending"></span><span class="tx mt">Process &amp; generate layouts</span></div>
+      <div class="plan-step"><span class="ck pending"></span><span class="tx mt">Import CSV variants &amp; generate summary</span></div>
+    </div></div>
+  </div><div class="chat-input-area"><div class="chat-input"><span class="attach">&#x1F4CE;</span><input placeholder="Ask AI" disabled><button class="send">&#x27A4;</button></div></div></div>
+  <div class="panel-right">
+    <div class="rp visible" data-tab="activity"><div class="ap">
+      <div class="le"><div class="li th">&#x1F914;</div><div class="lb"><div class="ll th-l">Planner &middot; Analyzing Objective</div><div class="lt">The user has provided a Google Sheets URL and wants to create projects. The URL points to a spreadsheet at <code>gid=1830571673</code> which likely contains campaign configuration data with multiple sheets/tabs for different product categories.<br><br>I need to orchestrate a multi-step workflow:<br>1. First, <strong>download the spreadsheet</strong> &mdash; the <code>integrationAgent</code> has the <code>downloadGoogleSheet</code> tool that can fetch Google Sheets in XLSX format for parsing.<br>2. Then, <strong>parse the campaign matrix</strong> &mdash; the <code>projectAgent</code> has <code>campaignMatrixTool</code> which invokes the <code>agent-campaign-matrix</code> lambda to analyze the spreadsheet structure, extract project names, variants, sizes, and other configuration. This tool also calls <code>agent-brief-maker</code> to enrich with custom fields and brand guidelines.<br>3. Next, <strong>create the projects</strong> using <code>createProjectTool</code> which invokes the <code>createProject</code> lambda, matching each project to the closest template in the team's library.<br>4. Optionally <strong>import PSDs</strong> if templates have associated PSD files.<br>5. <strong>Add campaign sizes</strong> using <code>addCampaignMatrixSizesTool</code> for each project.<br>6. <strong>Process layouts</strong> to generate all size variants from templates.<br>7. Finally, <strong>import CSV variants</strong> and generate a summary with editor links.</div></div></div>
+      <div class="le"><div class="li ag">P</div><div class="lb"><div class="ll ag-l">Planner &middot; Execution Plan</div><div class="lc">
+        <div class="kv"><span class="k">Step 1</span><span class="v"><code>integrationAgent</code> &rarr; Download spreadsheet as XLSX</span></div>
+        <div class="kv"><span class="k">Step 2</span><span class="v"><code>projectAgent</code> &rarr; campaignMatrixTool + briefMaker enrichment</span></div>
+        <div class="kv"><span class="k">Step 3</span><span class="v"><code>projectAgent</code> &rarr; createProjectTool with template matching</span></div>
+        <div class="kv"><span class="k">Step 4</span><span class="v"><code>projectAgent</code> &rarr; importPsdTool (if templates have PSDs)</span></div>
+        <div class="kv"><span class="k">Step 5</span><span class="v"><code>projectAgent</code> &rarr; addCampaignMatrixSizesTool</span></div>
+        <div class="kv"><span class="k">Step 6</span><span class="v"><code>projectAgent</code> &rarr; processLayoutsTool</span></div>
+        <div class="kv"><span class="k">Step 7</span><span class="v"><code>projectAgent</code> &rarr; getVariantsTool + projectSummaryTool</span></div>
+      </div></div></div>
+      <div class="le"><div class="li ag">S</div><div class="lb"><div class="ll ag-l">Supervisor &middot; Routing Step 1</div><div class="lt">Current step index: 0. Routing to <code>integrationAgent</code>. This agent has access to the <code>downloadGoogleSheet</code> tool which can authenticate with Google APIs and download the spreadsheet in the required format.</div></div></div>
+    </div></div>
+    <div class="rp hidden" data-tab="preview"><div class="empty-preview">No artifacts generated yet. Planning in progress...</div></div>
+  </div>
+</div></div></div>
+
+<!-- ════ S3: Download Sheet ════ -->
+<div class="screen" id="s-2">
+<div class="screen-desc"><span class="num">3</span> integrationAgent calls downloadGoogleSheet. No artifact &mdash; Activity shows the full execution trace.</div>
+<div class="frame"><div class="topbar"><div class="topbar-left"><span class="logo">Ask <span class="badge">AI</span></span><span class="topbar-title">Create Projects From Spreadsheet</span></div><div class="topbar-right"><button class="tab-btn active" onclick="switchTab(this,'activity')">Activity</button><button class="tab-btn" onclick="switchTab(this,'preview')">Preview</button><button class="icon-btn">&times;</button></div></div>
+<div class="layout">
+  <div class="panel-left"><div class="chat-body">
+    <div class="msg user"><div class="bubble">Create Projects</div><div class="file-chip"><span class="icon">&#x1F4CA;</span> Amazon_WRS.xlsx</div></div>
+    <div class="msg ai"><div class="avatar">R</div><div class="bubble">Right on it. Let me create a plan of action and call the agents to work on it.</div></div>
+    <div class="plan-box"><div class="plan-header"><span class="title">Plan of action</span><span class="count">1/7</span></div><div class="plan-steps">
+      <div class="plan-step"><span class="ck spin"></span><span class="tx hi">Download the Google spreadsheet</span></div>
+      <div class="plan-step"><span class="ck pending"></span><span class="tx mt">Analyze campaign matrix &amp; make brief</span></div>
+      <div class="plan-step"><span class="ck pending"></span><span class="tx mt">Create projects &amp; match templates</span></div>
+      <div class="plan-step"><span class="ck pending"></span><span class="tx mt">Import PSD templates</span></div>
+      <div class="plan-step"><span class="ck pending"></span><span class="tx mt">Add campaign sizes to each project</span></div>
+      <div class="plan-step"><span class="ck pending"></span><span class="tx mt">Process &amp; generate layouts</span></div>
+      <div class="plan-step"><span class="ck pending"></span><span class="tx mt">Import CSV variants &amp; generate summary</span></div>
+    </div></div>
+  </div><div class="chat-input-area"><div class="chat-input"><span class="attach">&#x1F4CE;</span><input placeholder="Ask AI" disabled><button class="send">&#x27A4;</button></div></div></div>
+  <div class="panel-right">
+    <div class="rp visible" data-tab="activity"><div class="ap">
+      <div class="le"><div class="li ag">iA</div><div class="lb"><div class="ll ag-l">integrationAgent &middot; Started</div><div class="lt">I'll help you create projects from the Google Sheet. The spreadsheet URL contains a <code>gid=1830571673</code> parameter indicating a specific sheet tab. Let me download the full workbook first so we can analyze all tabs for project data.</div></div></div>
+      <div class="le"><div class="li tl">&#x2699;</div><div class="lb"><div class="ll tl-l">Tool Call &middot; downloadGoogleSheet</div><div class="lc"><div class="kv"><span class="k">URL</span><span class="v" style="font-size:10px">https://docs.google.com/spreadsheets/d/1xgXn0vKk4OQQcovu_QN5z_g4Z5LivnXDctgccdM4xto/edit?gid=1830571673</span></div><div class="kv"><span class="k">Format</span><span class="v">xlsx</span></div></div></div></div>
+      <div class="le"><div class="li ok">&#x2713;</div><div class="lb"><div class="ll ok-l">Tool Result &middot; Download Successful</div><div class="lt">Google Sheet downloaded and stored on Rocketium's file server. The file is now accessible for the campaign matrix analysis step.</div><div class="lc"><div class="kv"><span class="k">File Name</span><span class="v">Amazon_WRS.xlsx</span></div><div class="kv"><span class="k">File ID</span><span class="v"><code>074767d8-0eb6-4fa5-b0dc-58d7e4caee64</code></span></div><div class="kv"><span class="k">Stored URL</span><span class="v" style="font-size:10px">rocketium.com/agentOps/google_sheets/65431fe4.../Amazon_WRS.xlsx</span></div><div class="kv"><span class="k">File Type</span><span class="v">application/vnd.openxmlformats-officedocument.spreadsheetml.sheet</span></div></div></div></div>
+      <div class="le"><div class="li ag">iA</div><div class="lb"><div class="ll ag-l">integrationAgent &middot; Complete</div><div class="lt">The spreadsheet "Amazon_WRS.xlsx" has been successfully downloaded and is ready for project creation. The file contains your project configuration data from the sheet at gid=1830571673. Handing off to the project creation system.</div></div></div>
+      <div class="le"><div class="li ag">S</div><div class="lb"><div class="ll ag-l">Supervisor &middot; Routing Step 2</div><div class="lt">integrationAgent completed successfully. Advancing to step 2: routing to <code>projectAgent</code> for campaign matrix analysis. The downloaded XLSX file URL will be passed as an attachment to the <code>campaignMatrixTool</code>.</div></div></div>
+    </div></div>
+    <div class="rp hidden" data-tab="preview"><div class="empty-preview">No artifacts generated yet. Spreadsheet download in progress...</div></div>
+  </div>
+</div></div></div>
+
+<!-- ════ S4: CAMPAIGN_MATRIX ════ -->
+<div class="screen" id="s-3">
+<div class="screen-desc"><span class="num">4</span> campaignMatrixTool + briefMaker return CAMPAIGN_MATRIX artifact. Preview activates. Switch to Activity to see the thinking.</div>
+<div class="frame"><div class="topbar"><div class="topbar-left"><span class="logo">Ask <span class="badge">AI</span></span><span class="topbar-title">Create Projects From Spreadsheet</span></div><div class="topbar-right"><button class="tab-btn" onclick="switchTab(this,'activity')">Activity</button><button class="tab-btn active has-new" onclick="switchTab(this,'preview')">Preview</button><button class="icon-btn">&times;</button></div></div>
+<div class="layout">
+  <div class="panel-left"><div class="chat-body">
+    <div class="msg user"><div class="bubble">Create Projects</div><div class="file-chip"><span class="icon">&#x1F4CA;</span> Amazon_WRS.xlsx</div></div>
+    <div class="msg ai"><div class="avatar">R</div><div class="bubble">Right on it. Let me create a plan of action and call the agents to work on it.</div></div>
+    <div class="plan-box"><div class="plan-header"><span class="title">Plan of action</span><span class="count">2/7</span></div><div class="plan-steps">
+      <div class="plan-step"><span class="ck done">&#x2713;</span><span class="tx">Download the Google spreadsheet</span></div>
+      <div class="plan-step"><span class="ck done">&#x2713;</span><span class="tx">Analyze campaign matrix &amp; make brief</span></div>
+      <div class="plan-step"><span class="ck spin"></span><span class="tx hi">Create projects &amp; match templates</span></div>
+      <div class="plan-step"><span class="ck pending"></span><span class="tx mt">Import PSD templates</span></div>
+      <div class="plan-step"><span class="ck pending"></span><span class="tx mt">Add campaign sizes to each project</span></div>
+      <div class="plan-step"><span class="ck pending"></span><span class="tx mt">Process &amp; generate layouts</span></div>
+      <div class="plan-step"><span class="ck pending"></span><span class="tx mt">Import CSV variants &amp; generate summary</span></div>
+    </div></div>
+  </div><div class="chat-input-area"><div class="chat-input"><span class="attach">&#x1F4CE;</span><input placeholder="Ask AI" disabled><button class="send">&#x27A4;</button></div></div></div>
+  <div class="panel-right">
+    <!-- ACTIVITY (switchable) -->
+    <div class="rp hidden" data-tab="activity"><div class="ap">
+      <div class="le"><div class="li ok">&#x2713;</div><div class="lb"><div class="ll ok-l">Step 1 Complete &middot; Spreadsheet Downloaded</div><div class="lt">Amazon_WRS.xlsx (074767d8...) stored and ready for analysis.</div></div></div>
+      <div class="le"><div class="li th">&#x1F914;</div><div class="lb"><div class="ll th-l">Planner &middot; Reasoning for Step 2</div><div class="lt">The user has initiated a 'Create Projects' workflow with a Google Sheet containing project configuration data. The spreadsheet has been successfully downloaded as <code>Amazon_WRS.xlsx</code>. Now we need to analyze the spreadsheet structure to extract the campaign matrix, project details, and other configuration parameters.<br><br>The <code>campaignMatrixTool</code> on the <code>projectAgent</code> will:<br>1. Invoke the <code>agent-campaign-matrix</code> lambda with the XLSX attachment<br>2. Use the Portkey prompt <code>pp-campaign-m-801e94</code> to have Claude analyze the spreadsheet contents<br>3. Extract project names, template names, variant data, sizes, and format<br>4. Then invoke the <code>agent-brief-maker</code> lambda with prompt <code>pp-brief-make-3896b5</code> to enrich the output with custom field mappings, descriptions, and brand guidelines<br>5. Merge both outputs into a final CAMPAIGN_MATRIX artifact</div></div></div>
+      <div class="le"><div class="li ag">pA</div><div class="lb"><div class="ll ag-l">projectAgent &middot; Started</div><div class="lt">Analyzing the downloaded spreadsheet to extract campaign matrix structure. The XLSX file will be sent as an attachment to the campaign matrix analysis lambda.</div></div></div>
+      <div class="le"><div class="li tl">&#x2699;</div><div class="lb"><div class="ll tl-l">Tool Call &middot; campaignMatrixTool</div><div class="lc"><div class="kv"><span class="k">Lambda</span><span class="v"><code>agent-campaign-matrix</code></span></div><div class="kv"><span class="k">Prompt ID</span><span class="v"><code>pp-campaign-m-801e94</code></span></div><div class="kv"><span class="k">Attachment</span><span class="v">Amazon_WRS.xlsx</span></div><div class="kv"><span class="k">Team ID</span><span class="v"><code>662f65377c456812d5baa85f</code></span></div></div></div></div>
+      <div class="le"><div class="li ok">&#x2713;</div><div class="lb"><div class="ll ok-l">Campaign Matrix Lambda &middot; Parsed</div><div class="lt">Successfully parsed the XLSX. Found 2 distinct sheets with project data: "Fashion WRS" (16 variants, 192 creatives) and "Fresh" (5 variants, 60 creatives). Validation status: PASSED. No validation errors detected.</div></div></div>
+      <div class="le"><div class="li tl">&#x2699;</div><div class="lb"><div class="ll tl-l">Lambda &middot; agent-brief-maker</div><div class="lc"><div class="kv"><span class="k">Prompt ID</span><span class="v"><code>pp-brief-make-3896b5</code></span></div><div class="kv"><span class="k">Input</span><span class="v">Campaign matrix output + team custom fields (Assignee, Input sheet, etc.)</span></div></div><div class="lt" style="margin-top:4px">Enriching each project with: custom field value mappings (Assignee &rarr; Rohit Singh, Input sheet &rarr; Amazon_WRS.xlsx), brand guidelines extraction from the spreadsheet data, competitive analysis generation, and detailed descriptions of each variant's layer structure.</div></div></div>
+      <div class="le"><div class="li ok">&#x2713;</div><div class="lb"><div class="ll ok-l">Brief Maker &middot; Enrichment Complete</div><div class="lt">Custom fields merged successfully. Generated brand guidelines for both projects. Created competitive analysis HTML reports. Final CAMPAIGN_MATRIX artifact assembled with merged <code>outputData</code>.</div></div></div>
+      <div class="le"><div class="li ar">&#x2B22;</div><div class="lb"><div class="ll ar-l">Artifact Created &middot; CAMPAIGN_MATRIX</div><div class="lt">Full campaign matrix with 2 projects, enriched custom fields, brand guidelines, and competitive analysis reports. <strong>Switching to Preview tab.</strong></div></div></div>
+    </div></div>
+    <!-- PREVIEW (default active) -->
+    <div class="rp visible" data-tab="preview">
+      <div class="art-header"><div class="art-type"><span class="atb cm">CAMPAIGN_MATRIX</span><span class="art-title">Campaign Analysis</span></div><select><option>1/2 &mdash; Fashion wrs</option><option>2/2 &mdash; Fresh</option></select></div>
+      <div class="art-body">
+        <div class="a-card">
+          <div class="a-card-title">Fashion wrs <span class="sub">Validation: PASSED</span></div>
+          <div class="a-row"><span class="a-k">Template</span><span class="a-v">Fashion WRS June - Static_1</span></div>
+          <div class="a-row"><span class="a-k">Format</span><span class="a-v">image</span></div>
+          <div class="a-row"><span class="a-k">Total Creatives</span><span class="a-v purple">192</span></div>
+          <div class="a-row"><span class="a-k">Variants</span><span class="a-v purple">16</span></div>
+          <div class="a-row"><span class="a-k">Assignee</span><span class="a-v">Rohit Singh</span></div>
+          <div class="a-row"><span class="a-k">Campaign</span><span class="a-v">Amazon Fashion WRS (Weekly Retail Sale)</span></div>
+          <div class="a-row"><span class="a-k">Sub-category</span><span class="a-v">Fashion &amp; Watches</span></div>
+          <div class="a-row"><span class="a-k">Country</span><span class="a-v">India (INR)</span></div>
+          <div class="a-row"><span class="a-k">Input Sheet</span><span class="a-v">Amazon_WRS.xlsx</span></div>
+        </div>
+        <div class="section-label">Sizes (12)</div>
+        <div class="badge-grid"><span class="sb">1080x1920</span><span class="sb">1920x1080</span><span class="sb">160x600</span><span class="sb">300x600</span><span class="sb">970x250</span><span class="sb">640x100</span><span class="sb">1456x180</span><span class="sb">600x500</span><span class="sb">300x250</span><span class="sb">320x50</span><span class="sb">728x90</span><span class="sb">1080x1080</span></div>
+        <div class="section-label">Variants (16)</div>
+        <div class="badge-grid"><span class="vb">Lab grown diamonds</span><span class="vb">Fashion jewellery</span><span class="vb">Silver jewellery</span><span class="vb">Everyday fine jewellery</span><span class="vb">Pure silver jewellery</span><span class="vb">Trending fashion jewellery</span><span class="vb">Mens jewellery</span><span class="vb">GenZ</span><span class="vb">Men's watches</span><span class="vb">Women's watches</span><span class="vb">Smartwatches</span><span class="vb">Premium watches for men</span><span class="vb">Premium watches for women</span><span class="vb">Men's watches (1)</span><span class="vb">Women's watches (1)</span><span class="vb">Genz</span></div>
+        <div class="section-label">Brand Guidelines</div>
+        <div class="desc-box">Amazon branding with Amz logo variants (logo 1, logo 2). Includes bank cashback strip, CTA button, product images, and brand logos. Bank copy: "Extra 10% cashback* on prepaid orders". TC Apply: "*T&amp;C apply". Jewellery and watches categories with multiple logo layers suggesting co-branding.</div>
+        <div class="section-label">Description</div>
+        <div class="desc-box">Each variant contains layers: Design Source, Amz logo 1, Amz logo 2, Bank strip, CTA, Image, Image 2, Image Copy 1, Image Copy 2, Logo 1, Logo 2, Logo 3, Rectangle 1, Ref, Bank copy, Copy 1, Copy 1 Copy 1, Copy 1 Copy 2, TC Apply.</div>
+        <div class="section-label">Competitive Analysis</div>
+        <div class="a-card"><div class="a-row"><span class="a-k">Report</span><span class="a-v blue" style="cursor:pointer">competitive-analysis/univJo8FEIS4jP49Ai3u4.html &#x2197;</span></div></div>
+      </div>
+    </div>
+  </div>
+</div></div></div>
+
+<!-- ════ S5: PROJECT_CONFIG ════ -->
+<div class="screen" id="s-4">
+<div class="screen-desc"><span class="num">5</span> createProjectTool returns PROJECT_CONFIG. Preview shows project IDs, template matching, closest templates.</div>
+<div class="frame"><div class="topbar"><div class="topbar-left"><span class="logo">Ask <span class="badge">AI</span></span><span class="topbar-title">Create Projects From Spreadsheet</span></div><div class="topbar-right"><button class="tab-btn" onclick="switchTab(this,'activity')">Activity</button><button class="tab-btn active has-new" onclick="switchTab(this,'preview')">Preview</button><button class="icon-btn">&times;</button></div></div>
+<div class="layout">
+  <div class="panel-left"><div class="chat-body">
+    <div class="msg user"><div class="bubble">Create Projects</div><div class="file-chip"><span class="icon">&#x1F4CA;</span> Amazon_WRS.xlsx</div></div>
+    <div class="msg ai"><div class="avatar">R</div><div class="bubble">Right on it. Let me create a plan of action and call the agents to work on it.</div></div>
+    <div class="plan-box"><div class="plan-header"><span class="title">Plan of action</span><span class="count">3/7</span></div><div class="plan-steps">
+      <div class="plan-step"><span class="ck done">&#x2713;</span><span class="tx">Download the Google spreadsheet</span></div>
+      <div class="plan-step"><span class="ck done">&#x2713;</span><span class="tx">Analyze campaign matrix &amp; make brief</span></div>
+      <div class="plan-step"><span class="ck done">&#x2713;</span><span class="tx">Create projects &amp; match templates</span></div>
+      <div class="plan-step"><span class="ck pending"></span><span class="tx mt">Import PSD templates</span></div>
+      <div class="plan-step"><span class="ck pending"></span><span class="tx mt">Add campaign sizes to each project</span></div>
+      <div class="plan-step"><span class="ck pending"></span><span class="tx mt">Process &amp; generate layouts</span></div>
+      <div class="plan-step"><span class="ck pending"></span><span class="tx mt">Import CSV variants &amp; generate summary</span></div>
+    </div></div>
+  </div><div class="chat-input-area"><div class="chat-input"><span class="attach">&#x1F4CE;</span><input placeholder="Ask AI" disabled><button class="send">&#x27A4;</button></div></div></div>
+  <div class="panel-right">
+    <div class="rp hidden" data-tab="activity"><div class="ap">
+      <div class="le"><div class="li ok">&#x2713;</div><div class="lb"><div class="ll ok-l">Steps 1&ndash;2 Complete</div><div class="lt">Spreadsheet downloaded, campaign matrix parsed and enriched with brief maker data.</div></div></div>
+      <div class="le"><div class="li th">&#x1F914;</div><div class="lb"><div class="ll th-l">projectAgent &middot; Analyzing Campaign Matrix Artifact</div><div class="lt">The CAMPAIGN_MATRIX artifact contains 2 projects from the spreadsheet. For each project, I need to:<br>1. Call <code>createProjectTool</code> with the project name and output format<br>2. The tool will invoke the <code>createProject</code> lambda which creates an asset group in the database<br>3. The lambda runs template matching &mdash; comparing the project's <code>templateName</code> from the spreadsheet against all templates in the team's library, returning the 10 closest matches by name similarity<br>4. The first match is auto-selected as <code>selectedTemplate</code><br>5. Each project gets an <code>assetFolderId</code> for storing generated creatives<br><br>The campaign matrix shows:<br>&bull; <strong>Fashion WRS</strong>: templateName="Fashion WRS June - Static_1", format=image, 16 variants<br>&bull; <strong>Fresh</strong>: templateName="Amazon fresh", format=image, 5 variants</div></div></div>
+      <div class="le"><div class="li tl">&#x2699;</div><div class="lb"><div class="ll tl-l">Tool Call &middot; createProjectTool</div><div class="lc"><div class="kv"><span class="k">Lambda</span><span class="v"><code>createProject</code> (invoked in parallel for both projects)</span></div><div class="kv"><span class="k">Project 1</span><span class="v">Fashion WRS &mdash; image format</span></div><div class="kv"><span class="k">Project 2</span><span class="v">Fresh &mdash; image format</span></div><div class="kv"><span class="k">Custom Fields</span><span class="v">Assignee: Rohit Singh, Input sheet: Amazon_WRS.xlsx</span></div></div></div></div>
+      <div class="le"><div class="li ok">&#x2713;</div><div class="lb"><div class="ll ok-l">createProject Lambda &middot; Success</div><div class="lt">Both projects created in parallel. Each project received a <code>shortId</code>, <code>projectId</code>, <code>assetFolderId</code>, and was matched against the team's template library. The system found 10 closest templates for each project ordered by name similarity score.</div></div></div>
+      <div class="le"><div class="li ar">&#x2B22;</div><div class="lb"><div class="ll ar-l">Artifact Created &middot; PROJECT_CONFIG</div><div class="lt">2 projects with full configuration: IDs, asset folders, selected templates, and 10 closest template alternatives for each. <strong>Switching to Preview tab.</strong></div></div></div>
+      <div class="le"><div class="li tl">&#x2699;</div><div class="lb"><div class="ll tl-l">Tool Call &middot; generativeUITool</div><div class="lt">Rendering a template selection UI so the user can review and confirm or change the auto-selected templates before proceeding with PSD import and size generation.</div></div></div>
+    </div></div>
+    <div class="rp visible" data-tab="preview">
+      <div class="art-header"><div class="art-type"><span class="atb pc">PROJECT_CONFIG</span><span class="art-title">2 Projects Created</span></div></div>
+      <div class="art-body">
+        <div class="a-card">
+          <div class="a-card-title">Fashion wrs</div>
+          <div class="a-row"><span class="a-k">Project ID</span><span class="a-v"><code>asset-group-69a02af375df9483d6866a48</code></span></div>
+          <div class="a-row"><span class="a-k">Short ID</span><span class="a-v"><code>1MexGr5TdJfy-909</code></span></div>
+          <div class="a-row"><span class="a-k">Asset Folder</span><span class="a-v"><code>69a02af375df9483d6866a3f</code></span></div>
+          <div class="a-row"><span class="a-k">Selected Template</span><span class="a-v" style="font-weight:600">Fashion WRS June - Static_1</span></div>
+          <div class="a-row"><span class="a-k">Template ID</span><span class="a-v"><code>69789c55dcf7e846f9abe066</code></span></div>
+          <div class="section-label">Closest Templates (10)</div>
+          <div class="tmpl-card selected"><div class="tmpl-thumb">&#x1F3A8;</div><div><div class="tmpl-name">Fashion WRS June - Static_1</div><div class="tmpl-meta">ID: 69789c55...abe066 &middot; Selected</div></div></div>
+          <div class="tmpl-card"><div class="tmpl-thumb">&#x1F4F0;</div><div><div class="tmpl-name">Perplexity Pro 2.0_cloned</div><div class="tmpl-meta">ID: 699f1ea6...ee1fbb</div></div></div>
+          <div class="tmpl-card"><div class="tmpl-thumb">&#x1F370;</div><div><div class="tmpl-name">Bonne Maman - Label &amp; Texture</div><div class="tmpl-meta">ID: 699daf42...4f005</div></div></div>
+          <div class="tmpl-card"><div class="tmpl-thumb">&#x1F34E;</div><div><div class="tmpl-name">Amazon fresh</div><div class="tmpl-meta">ID: 697b72b6...e3cba</div></div></div>
+          <div style="font-size:10.5px;color:#888;padding:4px 0">+ 6 more templates</div>
+        </div>
+        <div class="a-card">
+          <div class="a-card-title">Fresh</div>
+          <div class="a-row"><span class="a-k">Project ID</span><span class="a-v"><code>asset-group-69a02af3ba2a0aeb7b30a10d</code></span></div>
+          <div class="a-row"><span class="a-k">Short ID</span><span class="a-v"><code>1MexGr5TdJfy-908</code></span></div>
+          <div class="a-row"><span class="a-k">Selected Template</span><span class="a-v" style="font-weight:600">Amazon fresh</span></div>
+          <div class="a-row"><span class="a-k">Template ID</span><span class="a-v"><code>697b72b69032d422bd6e3cba</code></span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div></div></div>
+
+<!-- ════ S6: Template Select ════ -->
+<div class="screen" id="s-5">
+<div class="screen-desc"><span class="num">6</span> Execution pauses for user confirmation. Switch to Activity to see the planner's reasoning.</div>
+<div class="frame"><div class="topbar"><div class="topbar-left"><span class="logo">Ask <span class="badge">AI</span></span><span class="topbar-title">Create Projects From Spreadsheet</span></div><div class="topbar-right"><button class="tab-btn" onclick="switchTab(this,'activity')">Activity</button><button class="tab-btn active" onclick="switchTab(this,'preview')">Preview</button><button class="icon-btn">&times;</button></div></div>
+<div class="layout">
+  <div class="panel-left"><div class="chat-body">
+    <div class="msg user"><div class="bubble">Create Projects</div><div class="file-chip"><span class="icon">&#x1F4CA;</span> Amazon_WRS.xlsx</div></div>
+    <div class="msg ai"><div class="avatar">R</div><div class="bubble">Right on it. Let me create a plan of action and call the agents to work on it.</div></div>
+    <div class="plan-box"><div class="plan-header"><span class="title">Plan of action</span><span class="count">3/7</span></div><div class="plan-steps">
+      <div class="plan-step"><span class="ck done">&#x2713;</span><span class="tx">Download the Google spreadsheet</span></div>
+      <div class="plan-step"><span class="ck done">&#x2713;</span><span class="tx">Analyze campaign matrix &amp; make brief</span></div>
+      <div class="plan-step"><span class="ck done">&#x2713;</span><span class="tx">Create projects &amp; match templates</span></div>
+      <div class="plan-step"><span class="ck pending"></span><span class="tx mt">Import PSD templates</span></div>
+      <div class="plan-step"><span class="ck pending"></span><span class="tx mt">Add campaign sizes to each project</span></div>
+      <div class="plan-step"><span class="ck pending"></span><span class="tx mt">Process &amp; generate layouts</span></div>
+      <div class="plan-step"><span class="ck pending"></span><span class="tx mt">Import CSV variants &amp; generate summary</span></div>
+    </div></div>
+    <div class="awaiting"><div class="lbl">Awaiting Action</div><div class="act"><span>&#x1F3A8; Confirm Template Selection</span><span style="font-size:10px;color:#999">20s</span></div></div>
+    <div class="msg ai"><div class="avatar">R</div><div class="bubble">I've created 2 projects from your spreadsheet. Please confirm the template selection to proceed with PSD import and size generation.</div></div>
+  </div><div class="chat-input-area"><div class="chat-input"><span class="attach">&#x1F4CE;</span><input placeholder="Ask AI"><button class="send">&#x27A4;</button></div></div></div>
+  <div class="panel-right">
+    <div class="rp hidden" data-tab="activity"><div class="ap">
+      <div class="le"><div class="li ok">&#x2713;</div><div class="lb"><div class="ll ok-l">Steps 1&ndash;3 Complete</div><div class="lt">Spreadsheet downloaded, matrix parsed, 2 projects created with template matching.</div></div></div>
+      <div class="le"><div class="li ag">pA</div><div class="lb"><div class="ll ag-l">projectAgent &middot; Awaiting User Input</div><div class="lt">The <code>generativeUITool</code> has rendered a template selection interface in the Preview panel. The user needs to review the auto-selected templates:<br>&bull; <strong>Fashion wrs</strong> &rarr; "Fashion WRS June - Static_1" (best match from 10 candidates)<br>&bull; <strong>Fresh</strong> &rarr; "Amazon fresh" (best match from 10 candidates)<br><br>The user can accept these selections or swap to an alternative template from the closest matches list. Once confirmed, the workflow will proceed with importing PSD files from the selected templates and then adding campaign sizes.</div></div></div>
+    </div></div>
+    <div class="rp visible" data-tab="preview">
+      <div class="art-header"><div class="art-type"><span class="atb pc">PROJECT_CONFIG</span><span class="art-title">Template Selection</span></div><select><option>1/2 &mdash; Fashion wrs</option><option>2/2 &mdash; Fresh</option></select></div>
+      <div class="art-body">
+        <div class="a-card"><div class="a-card-title">Select template for Fashion wrs</div>
+          <div class="tmpl-card selected"><div class="tmpl-thumb">&#x1F3A8;</div><div><div class="tmpl-name">Fashion WRS June - Static_1</div><div class="tmpl-meta">Best match &middot; 192 creatives &middot; 16 variants</div></div></div>
+          <div class="tmpl-card"><div class="tmpl-thumb">&#x1F4F0;</div><div><div class="tmpl-name">Perplexity Pro 2.0_cloned</div><div class="tmpl-meta">Alternative template</div></div></div>
+          <div class="tmpl-card"><div class="tmpl-thumb">&#x1F370;</div><div><div class="tmpl-name">Bonne Maman - Label &amp; Texture</div><div class="tmpl-meta">Alternative template</div></div></div>
+        </div>
+        <div class="section-label">Configuration</div>
+        <div class="a-card">
+          <div class="a-row"><span class="a-k">Format</span><span class="a-v">image</span></div>
+          <div class="a-row"><span class="a-k">Sizes</span><span class="a-v">12</span></div>
+          <div class="a-row"><span class="a-k">Variants</span><span class="a-v">16</span></div>
+          <div class="a-row"><span class="a-k">Assignee</span><span class="a-v">Rohit Singh</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div></div></div>
+
+<!-- ════ S7: PSD_CONFIG ════ -->
+<div class="screen" id="s-6">
+<div class="screen-desc"><span class="num">7</span> importPsdTool returns PSD_CONFIG. Preview shows PSD-to-project mapping. Activity has the full reasoning.</div>
+<div class="frame"><div class="topbar"><div class="topbar-left"><span class="logo">Ask <span class="badge">AI</span></span><span class="topbar-title">Create Projects From Spreadsheet</span></div><div class="topbar-right"><button class="tab-btn" onclick="switchTab(this,'activity')">Activity</button><button class="tab-btn active has-new" onclick="switchTab(this,'preview')">Preview</button><button class="icon-btn">&times;</button></div></div>
+<div class="layout">
+  <div class="panel-left"><div class="chat-body">
+    <div class="msg user"><div class="bubble">Create Projects</div><div class="file-chip"><span class="icon">&#x1F4CA;</span> Amazon_WRS.xlsx</div></div>
+    <div class="msg ai"><div class="avatar">R</div><div class="bubble">Right on it. Let me create a plan of action and call the agents to work on it.</div></div>
+    <div class="plan-box"><div class="plan-header"><span class="title">Plan of action</span><span class="count">4/7</span></div><div class="plan-steps">
+      <div class="plan-step"><span class="ck done">&#x2713;</span><span class="tx">Download the Google spreadsheet</span></div>
+      <div class="plan-step"><span class="ck done">&#x2713;</span><span class="tx">Analyze campaign matrix &amp; make brief</span></div>
+      <div class="plan-step"><span class="ck done">&#x2713;</span><span class="tx">Create projects &amp; match templates</span></div>
+      <div class="plan-step"><span class="ck done">&#x2713;</span><span class="tx">Import PSD templates</span></div>
+      <div class="plan-step"><span class="ck spin"></span><span class="tx hi">Add campaign sizes to each project</span></div>
+      <div class="plan-step"><span class="ck pending"></span><span class="tx mt">Process &amp; generate layouts</span></div>
+      <div class="plan-step"><span class="ck pending"></span><span class="tx mt">Import CSV variants &amp; generate summary</span></div>
+    </div></div>
+    <div class="msg user"><div class="bubble">Templates confirmed. Proceed.</div></div>
+  </div><div class="chat-input-area"><div class="chat-input"><span class="attach">&#x1F4CE;</span><input placeholder="Ask AI" disabled><button class="send">&#x27A4;</button></div></div></div>
+  <div class="panel-right">
+    <div class="rp hidden" data-tab="activity"><div class="ap">
+      <div class="le"><div class="li ua">U</div><div class="lb"><div class="ll ua-l">User Confirmation Received</div><div class="lt">Templates confirmed. The user accepted the auto-selected templates for both projects. Proceeding with PSD import.</div></div></div>
+      <div class="le"><div class="li th">&#x1F914;</div><div class="lb"><div class="ll th-l">Planner &middot; Reasoning for PSD Import</div><div class="lt">User has confirmed template selection. Now I need to check if the selected templates have associated PSD files that should be imported into the projects.<br><br>The <code>importPsdTool</code> reads the PROJECT_CONFIG artifact to find projects where <code>selectedPsd</code> is not null. It extracts the PSD URL from each template's configuration and links it to the corresponding project's asset folder. This ensures the design layers from the PSD are available when generating size variants.<br><br>For projects without a PSD (e.g., when using a Rocketium native template), this step is skipped gracefully.</div></div></div>
+      <div class="le"><div class="li tl">&#x2699;</div><div class="lb"><div class="ll tl-l">Tool Call &middot; importPsdTool</div><div class="lc"><div class="kv"><span class="k">Fashion wrs</span><span class="v">PSD from template: Fashion WRS June - Static_1</span></div><div class="kv"><span class="k">Fresh</span><span class="v">PSD from template: Amazon fresh</span></div></div></div></div>
+      <div class="le"><div class="li ok">&#x2713;</div><div class="lb"><div class="ll ok-l">importPsdTool &middot; Success</div><div class="lt">Successfully imported PSD files for 2 project(s). Each PSD has been linked to its project's asset folder, making the design layers available for layout generation.</div></div></div>
+      <div class="le"><div class="li ar">&#x2B22;</div><div class="lb"><div class="ll ar-l">Artifact Created &middot; PSD_CONFIG</div><div class="lt">PSD configuration with project-to-PSD mapping for both projects. <strong>Switching to Preview tab.</strong></div></div></div>
+    </div></div>
+    <div class="rp visible" data-tab="preview">
+      <div class="art-header"><div class="art-type"><span class="atb psd">PSD_CONFIG</span><span class="art-title">PSD Import Complete</span></div></div>
+      <div class="art-body">
+        <div class="a-card">
+          <div class="a-card-title">Fashion wrs <span class="sub">PSD Imported</span></div>
+          <div class="a-row"><span class="a-k">PSD Source</span><span class="a-v">Fashion WRS June - Static_1</span></div>
+          <div class="a-row"><span class="a-k">Project ID</span><span class="a-v"><code>asset-group-69a02af375df9483d6866a48</code></span></div>
+          <div class="a-row"><span class="a-k">Short ID</span><span class="a-v"><code>1MexGr5TdJfy-909</code></span></div>
+          <div class="a-row"><span class="a-k">Asset Folder</span><span class="a-v"><code>69a02af375df9483d6866a3f</code></span></div>
+          <div class="a-row"><span class="a-k">Status</span><span class="a-v green">Linked</span></div>
+        </div>
+        <div class="a-card">
+          <div class="a-card-title">Fresh <span class="sub">PSD Imported</span></div>
+          <div class="a-row"><span class="a-k">PSD Source</span><span class="a-v">Amazon fresh</span></div>
+          <div class="a-row"><span class="a-k">Project ID</span><span class="a-v"><code>asset-group-69a02af3ba2a0aeb7b30a10d</code></span></div>
+          <div class="a-row"><span class="a-k">Short ID</span><span class="a-v"><code>1MexGr5TdJfy-908</code></span></div>
+          <div class="a-row"><span class="a-k">Status</span><span class="a-v green">Linked</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div></div></div>
+
+<!-- ════ S8: ADD_SIZES_MULTIPLE ════ -->
+<div class="screen" id="s-7">
+<div class="screen-desc"><span class="num">8</span> addCampaignMatrixSizesTool returns ADD_SIZES_MULTIPLE. Preview shows task mapping. Mandatory stop.</div>
+<div class="frame"><div class="topbar"><div class="topbar-left"><span class="logo">Ask <span class="badge">AI</span></span><span class="topbar-title">Create Projects From Spreadsheet</span></div><div class="topbar-right"><button class="tab-btn" onclick="switchTab(this,'activity')">Activity</button><button class="tab-btn active has-new" onclick="switchTab(this,'preview')">Preview</button><button class="icon-btn">&times;</button></div></div>
+<div class="layout">
+  <div class="panel-left"><div class="chat-body">
+    <div class="msg user"><div class="bubble">Create Projects</div><div class="file-chip"><span class="icon">&#x1F4CA;</span> Amazon_WRS.xlsx</div></div>
+    <div class="msg ai"><div class="avatar">R</div><div class="bubble">Right on it. Let me create a plan of action and call the agents to work on it.</div></div>
+    <div class="plan-box"><div class="plan-header"><span class="title">Plan of action</span><span class="count">5/7</span></div><div class="plan-steps">
+      <div class="plan-step"><span class="ck done">&#x2713;</span><span class="tx">Download the Google spreadsheet</span></div>
+      <div class="plan-step"><span class="ck done">&#x2713;</span><span class="tx">Analyze campaign matrix &amp; make brief</span></div>
+      <div class="plan-step"><span class="ck done">&#x2713;</span><span class="tx">Create projects &amp; match templates</span></div>
+      <div class="plan-step"><span class="ck done">&#x2713;</span><span class="tx">Import PSD templates</span></div>
+      <div class="plan-step"><span class="ck done">&#x2713;</span><span class="tx">Add campaign sizes to each project</span></div>
+      <div class="plan-step"><span class="ck pending"></span><span class="tx mt">Process &amp; generate layouts</span></div>
+      <div class="plan-step"><span class="ck pending"></span><span class="tx mt">Import CSV variants &amp; generate summary</span></div>
+    </div></div>
+    <div class="awaiting"><div class="lbl">Mandatory Stop</div><div class="act"><span>&#x23F8; Confirm to process layouts</span></div></div>
+  </div><div class="chat-input-area"><div class="chat-input"><span class="attach">&#x1F4CE;</span><input placeholder="Ask AI"><button class="send">&#x27A4;</button></div></div></div>
+  <div class="panel-right">
+    <div class="rp hidden" data-tab="activity"><div class="ap">
+      <div class="le"><div class="li ok">&#x2713;</div><div class="lb"><div class="ll ok-l">Steps 1&ndash;4 Complete</div><div class="lt">Spreadsheet downloaded, matrix parsed, projects created, PSDs imported.</div></div></div>
+      <div class="le"><div class="li th">&#x1F914;</div><div class="lb"><div class="ll th-l">Planner &middot; Reasoning for Adding Sizes</div><div class="lt">User has confirmed template selection and PSD import is complete. The two projects (Fashion wrs and Fresh) need their 12 campaign sizes added. The <code>addCampaignMatrixSizesTool</code> will:<br><br>1. Take the project data with <code>projectShortId</code> and <code>sizesToGenerate</code> for each project<br>2. Create size entries in the project's asset group (e.g., 1080x1920, 1920x1080, 160x600, etc.)<br>3. Each size gets a unique UUID mapped to its dimension<br>4. Queue layout generation tasks for the template-to-size conversion<br><br><strong>Important:</strong> This tool has a <strong>mandatory stop point</strong> after execution. The system must wait for user confirmation before processing the queued layouts, because layout processing replaces all existing template sizes with the new campaign sizes and is irreversible.</div></div></div>
+      <div class="le"><div class="li tl">&#x2699;</div><div class="lb"><div class="ll tl-l">Tool Call &middot; addCampaignMatrixSizesTool</div><div class="lc"><div class="kv"><span class="k">Fashion wrs</span><span class="v"><code>1MexGr5TdJfy-909</code> &mdash; 12 sizes</span></div><div class="kv"><span class="k">Fresh</span><span class="v"><code>1MexGr5TdJfy-908</code> &mdash; 12 sizes</span></div></div></div></div>
+      <div class="le"><div class="li ok">&#x2713;</div><div class="lb"><div class="ll ok-l">addCampaignMatrixSizesTool &middot; Sizes Queued</div><div class="lt">12 sizes added to both projects. Layout generation tasks are queued. System is now at a mandatory stop point &mdash; waiting for user confirmation before processing.</div></div></div>
+      <div class="le"><div class="li ar">&#x2B22;</div><div class="lb"><div class="ll ar-l">Artifact Created &middot; ADD_SIZES_MULTIPLE</div><div class="lt">Task mapping with size-to-UUID assignments for each project. <strong>Switching to Preview tab.</strong></div></div></div>
+    </div></div>
+    <div class="rp visible" data-tab="preview">
+      <div class="art-header"><div class="art-type"><span class="atb sz">ADD_SIZES_MULTIPLE</span><span class="art-title">Sizes Added &mdash; Layout Queued</span></div></div>
+      <div class="art-body">
+        <div class="a-card">
+          <div class="a-card-title">Fresh <span class="sub">Task: 73b82087-0034-4c87-ad49-8e900d1be023</span></div>
+          <div class="a-row"><span class="a-k">Project</span><span class="a-v"><code>1MexGr5TdJfy-908</code></span></div>
+          <div class="a-row"><span class="a-k">Status</span><span class="a-v amber">Queued &mdash; awaiting confirmation</span></div>
+          <div class="section-label">Size-to-UUID Mapping</div>
+          <table class="task-table"><thead><tr><th>Size UUID</th><th>Dimension</th></tr></thead><tbody>
+            <tr><td><code>670012bc-fa2d-4f1c</code></td><td>160x600</td></tr>
+            <tr><td><code>ab43e444-efab-4e31</code></td><td>970x250</td></tr>
+            <tr><td><code>4154cf01-0fc6-45eb</code></td><td>1456x180</td></tr>
+            <tr><td><code>2f9695af-06a8-4936</code></td><td>600x500</td></tr>
+          </tbody></table>
+          <div style="font-size:10.5px;color:#888;padding:6px 0">+ 8 more sizes</div>
+        </div>
+        <div class="a-card">
+          <div class="a-card-title">Fashion wrs</div>
+          <div class="a-row"><span class="a-k">Project</span><span class="a-v"><code>1MexGr5TdJfy-909</code></span></div>
+          <div class="a-row"><span class="a-k">Sizes Added</span><span class="a-v green">12 sizes</span></div>
+          <div class="section-label">All Sizes</div>
+          <div class="badge-grid"><span class="sb">1080x1920</span><span class="sb">1920x1080</span><span class="sb">160x600</span><span class="sb">300x600</span><span class="sb">970x250</span><span class="sb">640x100</span><span class="sb">1456x180</span><span class="sb">600x500</span><span class="sb">300x250</span><span class="sb">320x50</span><span class="sb">728x90</span><span class="sb">1080x1080</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div></div></div>
+
+<!-- ════ S9: Process Layouts ════ -->
+<div class="screen" id="s-8">
+<div class="screen-desc"><span class="num">9</span> User confirmed. processLayoutsTool runs. No new artifact &mdash; Activity shows thinking and execution.</div>
+<div class="frame"><div class="topbar"><div class="topbar-left"><span class="logo">Ask <span class="badge">AI</span></span><span class="topbar-title">Create Projects From Spreadsheet</span></div><div class="topbar-right"><button class="tab-btn active" onclick="switchTab(this,'activity')">Activity</button><button class="tab-btn" onclick="switchTab(this,'preview')">Preview</button><button class="icon-btn">&times;</button></div></div>
+<div class="layout">
+  <div class="panel-left"><div class="chat-body">
+    <div class="msg user"><div class="bubble">Create Projects</div><div class="file-chip"><span class="icon">&#x1F4CA;</span> Amazon_WRS.xlsx</div></div>
+    <div class="msg ai"><div class="avatar">R</div><div class="bubble">Right on it. Let me create a plan of action and call the agents to work on it.</div></div>
+    <div class="plan-box"><div class="plan-header"><span class="title">Plan of action</span><span class="count">6/7</span></div><div class="plan-steps">
+      <div class="plan-step"><span class="ck done">&#x2713;</span><span class="tx">Download the Google spreadsheet</span></div>
+      <div class="plan-step"><span class="ck done">&#x2713;</span><span class="tx">Analyze campaign matrix &amp; make brief</span></div>
+      <div class="plan-step"><span class="ck done">&#x2713;</span><span class="tx">Create projects &amp; match templates</span></div>
+      <div class="plan-step"><span class="ck done">&#x2713;</span><span class="tx">Import PSD templates</span></div>
+      <div class="plan-step"><span class="ck done">&#x2713;</span><span class="tx">Add campaign sizes to each project</span></div>
+      <div class="plan-step"><span class="ck spin"></span><span class="tx hi">Process &amp; generate layouts</span></div>
+      <div class="plan-step"><span class="ck pending"></span><span class="tx mt">Import CSV variants &amp; generate summary</span></div>
+    </div></div>
+    <div class="msg user"><div class="bubble">Continue workflow execution.</div></div>
+  </div><div class="chat-input-area"><div class="chat-input"><span class="attach">&#x1F4CE;</span><input placeholder="Ask AI" disabled><button class="send">&#x27A4;</button></div></div></div>
+  <div class="panel-right">
+    <div class="rp visible" data-tab="activity"><div class="ap">
+      <div class="le"><div class="li ua">U</div><div class="lb"><div class="ll ua-l">User Confirmation Received</div><div class="lt">"Continue workflow execution" &mdash; explicit instruction to proceed past the mandatory stop point.</div></div></div>
+      <div class="le"><div class="li th">&#x1F914;</div><div class="lb"><div class="ll th-l">Planner &middot; Processing Mandatory Stop</div><div class="lt">The user has confirmed to proceed with the workflow after campaign sizes were added. The system is at the mandatory stop point after <code>addCampaignMatrixSizesTool</code> where layout generation is queued.<br><br>The user's message "Continue workflow execution" is an explicit instruction to proceed. No skip or override instructions were provided in recent messages. The next step in the workflow sequence is to process the layouts using <code>processLayoutsTool</code> for both projects.<br><br>This tool will:<br>1. Take each queued layout generation task<br>2. Convert the source template into each of the 12 requested sizes<br>3. <strong>Remove all existing template sizes</strong> and replace them with the campaign sizes<br>4. Only process sizes that were explicitly requested in the campaign matrix</div></div></div>
+      <div class="le"><div class="li ag">S</div><div class="lb"><div class="ll ag-l">Supervisor &middot; Routing Step 6</div><div class="lt">Mandatory stop cleared by user confirmation. Advancing to step 6: routing to <code>projectAgent</code> for layout processing.</div></div></div>
+      <div class="le"><div class="li tl">&#x2699;</div><div class="lb"><div class="ll tl-l">Tool Call &middot; processLayoutsTool</div><div class="lt">Processing all queued layout generation tasks for both projects. This will convert templates into all 12 requested size formats...</div></div></div>
+      <div class="le"><div class="li ok">&#x2713;</div><div class="lb"><div class="ll ok-l">processLayoutsTool &middot; Complete</div><div class="lt">Layout processing completed: <strong>1 successful</strong>, 0 failed out of 1 projects.<br>Only project sizes that were requested will be processed. All existing template sizes have been removed.<br>All the requested sizes are processed, no further action is required.</div></div></div>
+    </div></div>
+    <div class="rp hidden" data-tab="preview">
+      <div class="art-header"><div class="art-type"><span class="atb sz">ADD_SIZES_MULTIPLE</span><span class="art-title">Sizes Added (previous artifact)</span></div></div>
+      <div class="art-body"><div class="a-card"><div class="a-card-title">Layout processing running...</div><div class="a-row"><span class="a-k">Status</span><span class="a-v green">Processing layouts for all 12 sizes</span></div></div></div>
+    </div>
+  </div>
+</div></div></div>
+
+<!-- ════ S10: Summary ════ -->
+<div class="screen" id="s-9">
+<div class="screen-desc"><span class="num">10</span> getVariantsTool triggers CSV_IMPORT. projectSummaryTool generates editor links. All 7 steps done.</div>
+<div class="frame"><div class="topbar"><div class="topbar-left"><span class="logo">Ask <span class="badge">AI</span></span><span class="topbar-title">Create Projects From Spreadsheet</span></div><div class="topbar-right"><button class="tab-btn active" onclick="switchTab(this,'activity')">Activity</button><button class="tab-btn" onclick="switchTab(this,'preview')">Preview</button><button class="icon-btn">&times;</button></div></div>
+<div class="layout">
+  <div class="panel-left"><div class="chat-body">
+    <div class="msg user"><div class="bubble">Create Projects</div><div class="file-chip"><span class="icon">&#x1F4CA;</span> Amazon_WRS.xlsx</div></div>
+    <div class="msg ai"><div class="avatar">R</div><div class="bubble">Right on it. Let me create a plan of action and call the agents to work on it.</div></div>
+    <div class="plan-box"><div class="plan-header"><span class="title">Plan of action</span><span class="count" style="color:#16a34a">7/7 &#x2713;</span></div><div class="plan-steps">
+      <div class="plan-step"><span class="ck done">&#x2713;</span><span class="tx">Download the Google spreadsheet</span></div>
+      <div class="plan-step"><span class="ck done">&#x2713;</span><span class="tx">Analyze campaign matrix &amp; make brief</span></div>
+      <div class="plan-step"><span class="ck done">&#x2713;</span><span class="tx">Create projects &amp; match templates</span></div>
+      <div class="plan-step"><span class="ck done">&#x2713;</span><span class="tx">Import PSD templates</span></div>
+      <div class="plan-step"><span class="ck done">&#x2713;</span><span class="tx">Add campaign sizes to each project</span></div>
+      <div class="plan-step"><span class="ck done">&#x2713;</span><span class="tx">Process &amp; generate layouts</span></div>
+      <div class="plan-step"><span class="ck done">&#x2713;</span><span class="tx">Import CSV variants &amp; generate summary</span></div>
+    </div></div>
+    <div class="msg ai"><div class="avatar">R</div><div class="bubble">All done! 2 projects created with 252 total assets.</div></div>
+  </div><div class="chat-input-area"><div class="chat-input"><span class="attach">&#x1F4CE;</span><input placeholder="Ask AI"><button class="send">&#x27A4;</button></div></div></div>
+  <div class="panel-right">
+    <div class="rp visible" data-tab="activity"><div class="ap">
+      <div class="le"><div class="li th">&#x1F914;</div><div class="lb"><div class="ll th-l">projectAgent &middot; Final Steps Analysis</div><div class="lt">Layout processing is complete. Now I need to handle the final two tools in sequence:<br><br>1. <code>getVariantsTool</code> &mdash; checks if any created projects have CSV attachments that should be imported as variants. It looks at the PROJECT_CONFIG and PSD_CONFIG artifacts to find projects with <code>isProjectCreated: true</code> and CSV file attachments. If found, it returns a client-side action <code>CSV_IMPORT</code> with <code>shouldTrigger: true</code> that tells the frontend to open the project and automatically start the CSV import flow.<br><br>2. <code>projectSummaryTool</code> &mdash; always called last. It queries the database for all created asset groups, counts total creatives, checks for CSV-based variant counts, and generates clickable editor links for each project at <code>/advertising/campaign/editor/{shortId}</code>.</div></div></div>
+      <div class="le"><div class="li tl">&#x2699;</div><div class="lb"><div class="ll tl-l">Tool Call &middot; getVariantsTool</div><div class="lc"><div class="kv"><span class="k">Action</span><span class="v"><code>CLIENT &rarr; CSV_IMPORT</code></span></div><div class="kv"><span class="k">Project</span><span class="v"><code>1MexGr5TdJfy-909</code> (Fashion wrs)</span></div><div class="kv"><span class="k">Trigger</span><span class="v green" style="font-weight:600">shouldTrigger: true</span></div></div></div></div>
+      <div class="le"><div class="li tl">&#x2699;</div><div class="lb"><div class="ll tl-l">Tool Call &middot; projectSummaryTool</div><div class="lt">Querying asset groups for created projects, counting total creatives and CSV-based variants...</div></div></div>
+      <div class="le"><div class="li ok">&#x2713;</div><div class="lb"><div class="ll ok-l">projectSummaryTool &middot; Summary Generated</div><div class="lt">2 projects can be opened in editor. Total assets: <strong>252</strong>. Assets to be created from CSV: pending import.</div><div class="lc"><div class="kv"><span class="k">Fashion wrs</span><span class="v blue">/advertising/campaign/editor/1MexGr5TdJfy-909</span></div><div class="kv"><span class="k">Fresh</span><span class="v blue">/advertising/campaign/editor/1MexGr5TdJfy-908</span></div></div></div></div>
+      <div class="le"><div class="li ag">S</div><div class="lb"><div class="ll ag-l">Supervisor &middot; Workflow Complete</div><div class="lt">All 7 plan steps executed successfully. Empty plan returned &mdash; no further steps needed. Routing to END. The client will now trigger OPEN_PROJECT to show the asset preview.</div></div></div>
+    </div></div>
+    <div class="rp hidden" data-tab="preview">
+      <div class="art-header"><div class="art-type"><span class="atb sz">ADD_SIZES_MULTIPLE</span><span class="art-title">Previous: Sizes Added</span></div></div>
+      <div class="art-body"><div class="a-card"><div class="a-card-title">All steps complete</div><div class="a-row"><span class="a-k">Status</span><span class="a-v green">Workflow finished. Opening asset preview...</span></div></div></div>
+    </div>
+  </div>
+</div></div></div>
+
+<!-- ════ S11: Asset Preview ════ -->
+<div class="screen" id="s-10">
+<div class="screen-desc"><span class="num">11</span> Client triggers OPEN_PROJECT. Preview shows the asset grid. Activity shows the full execution history.</div>
+<div class="frame"><div class="topbar"><div class="topbar-left"><span class="logo">Ask <span class="badge">AI</span></span><span class="topbar-title">Create Projects From Spreadsheet</span></div><div class="topbar-right"><button class="tab-btn" onclick="switchTab(this,'activity')">Activity</button><button class="tab-btn active has-new" onclick="switchTab(this,'preview')">Preview</button><button class="icon-btn">&times;</button></div></div>
+<div class="layout">
+  <div class="panel-left"><div class="chat-body">
+    <div class="msg user"><div class="bubble">Create Projects</div><div class="file-chip"><span class="icon">&#x1F4CA;</span> Amazon_WRS.xlsx</div></div>
+    <div class="msg ai"><div class="avatar">R</div><div class="bubble">Right on it. Let me create a plan of action and call the agents to work on it.</div></div>
+    <div class="plan-box"><div class="plan-header"><span class="title">Plan of action</span><span class="count" style="color:#16a34a">7/7 &#x2713;</span></div><div class="plan-steps">
+      <div class="plan-step"><span class="ck done">&#x2713;</span><span class="tx">Download the Google spreadsheet</span></div>
+      <div class="plan-step"><span class="ck done">&#x2713;</span><span class="tx">Analyze campaign matrix &amp; make brief</span></div>
+      <div class="plan-step"><span class="ck done">&#x2713;</span><span class="tx">Create projects &amp; match templates</span></div>
+      <div class="plan-step"><span class="ck done">&#x2713;</span><span class="tx">Import PSD templates</span></div>
+      <div class="plan-step"><span class="ck done">&#x2713;</span><span class="tx">Add campaign sizes to each project</span></div>
+      <div class="plan-step"><span class="ck done">&#x2713;</span><span class="tx">Process &amp; generate layouts</span></div>
+      <div class="plan-step"><span class="ck done">&#x2713;</span><span class="tx">Import CSV variants &amp; generate summary</span></div>
+    </div></div>
+    <div class="msg ai"><div class="avatar">R</div><div class="bubble">All done! 2 projects with 252 total assets are now open in the editor.</div></div>
+  </div><div class="chat-input-area"><div class="chat-input"><span class="attach">&#x1F4CE;</span><input placeholder="Ask AI"><button class="send">&#x27A4;</button></div></div></div>
+  <div class="panel-right">
+    <div class="rp hidden" data-tab="activity"><div class="ap">
+      <div class="le"><div class="li ok">&#x2713;</div><div class="lb"><div class="ll ok-l">Full Workflow Complete</div><div class="lt">All 7 steps executed successfully across 3 agents (integrationAgent, projectAgent x3, planner) and 8 tool calls (downloadGoogleSheet, campaignMatrixTool, createProjectTool, generativeUITool, importPsdTool, addCampaignMatrixSizesTool, processLayoutsTool, getVariantsTool, projectSummaryTool).</div></div></div>
+      <div class="le"><div class="li ar">&#x2B22;</div><div class="lb"><div class="ll ar-l">Artifacts Generated (4)</div><div class="lc">
+        <div class="kv"><span class="k">1. CAMPAIGN_MATRIX</span><span class="v">2 projects, 21 variants, 252 total creatives</span></div>
+        <div class="kv"><span class="k">2. PROJECT_CONFIG</span><span class="v">2 projects with IDs, templates, closest matches</span></div>
+        <div class="kv"><span class="k">3. PSD_CONFIG</span><span class="v">2 PSD files linked to projects</span></div>
+        <div class="kv"><span class="k">4. ADD_SIZES_MULTIPLE</span><span class="v">12 sizes per project, task UUIDs assigned</span></div>
+      </div></div></div>
+      <div class="le"><div class="li ag">S</div><div class="lb"><div class="ll ag-l">Client Action &middot; OPEN_PROJECT</div><div class="lt">Frontend triggered project open for Fashion wrs (<code>1MexGr5TdJfy-909</code>) with CSV_IMPORT auto-trigger. Asset preview is now displayed.</div></div></div>
+    </div></div>
+    <div class="rp visible" data-tab="preview">
+      <div class="art-header"><div class="art-type"><span class="atb ap">ASSET_PREVIEW</span><span class="art-title">Fashion wrs</span></div><select><option>1/2 &mdash; Fashion wrs (192)</option><option>2/2 &mdash; Fresh (60)</option></select></div>
+      <div class="art-body">
+        <div class="a-card">
+          <div class="a-card-title">Campaign Summary <span class="ac-badge green">COMPLETE</span></div>
+          <div class="ac-stats">
+            <div class="ac-stat"><div class="num">192</div><div class="sl">Total Creatives</div></div>
+            <div class="ac-stat"><div class="num">16</div><div class="sl">Variants</div></div>
+            <div class="ac-stat"><div class="num">12</div><div class="sl">Sizes</div></div>
+            <div class="ac-stat"><div class="num">1</div><div class="sl">Template</div></div>
+          </div>
+        </div>
+        <div class="a-card">
+          <div class="a-card-title">Variant: Lab grown diamonds</div>
+          <div class="ac-grid">
+            <div class="ac-thumb tall">1080<br>x<br>1920</div>
+            <div class="ac-thumb wide">1920x1080</div>
+            <div class="ac-thumb">300x600</div>
+            <div class="ac-thumb">160x600</div>
+            <div class="ac-thumb wide">970x250</div>
+            <div class="ac-thumb">300x250</div>
+            <div class="ac-thumb">1080x1080</div>
+            <div class="ac-thumb wide">1456x180</div>
+            <div class="ac-thumb">600x500</div>
+            <div class="ac-thumb wide">728x90</div>
+            <div class="ac-thumb wide">640x100</div>
+            <div class="ac-thumb">320x50</div>
+          </div>
+        </div>
+        <div class="a-card">
+          <div class="a-card-title">Variant: Fashion jewellery</div>
+          <div class="ac-grid">
+            <div class="ac-thumb tall">1080<br>x<br>1920</div>
+            <div class="ac-thumb wide">1920x1080</div>
+            <div class="ac-thumb">300x600</div>
+            <div class="ac-thumb">160x600</div>
+          </div>
+          <div style="text-align:center;padding:6px;font-size:10.5px;color:#888">+ 8 more sizes</div>
+        </div>
+        <div style="text-align:center;font-size:11px;color:#888;padding:8px">+ 14 more variants</div>
+        <div style="text-align:center;padding:8px"><button class="open-link">&#x2197; Open in Editor &mdash; /advertising/campaign/editor/1MexGr5TdJfy-909</button></div>
+      </div>
+    </div>
+  </div>
+</div></div></div>
+
+</div>
+<script>
+function show(i){
+  document.querySelectorAll('.screen').forEach((s,j)=>s.classList.toggle('active',j===i));
+  document.querySelectorAll('.screen-nav button').forEach((b,j)=>b.classList.toggle('active',j===i));
+}
+function switchTab(btn,tab){
+  const frame=btn.closest('.frame');
+  frame.querySelectorAll('.tab-btn').forEach(b=>{b.classList.remove('active');b.classList.remove('has-new')});
+  btn.classList.add('active');
+  frame.querySelectorAll('.rp').forEach(p=>{
+    if(p.dataset.tab===tab){p.classList.remove('hidden');p.classList.add('visible')}
+    else{p.classList.add('hidden');p.classList.remove('visible')}
+  });
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Image AI — Magic Blend Workflow</title>
+<style>
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f0f0f5;color:#1a1a2e}
+  .screen-nav{position:fixed;top:0;left:0;right:0;z-index:100;background:#1a1a2e;color:#fff;display:flex;align-items:center;padding:0 16px;height:52px;gap:4px;box-shadow:0 2px 12px rgba(0,0,0,.25);overflow-x:auto}
+  .screen-nav .label{font-size:12px;opacity:.5;margin-right:6px;white-space:nowrap}
+  .screen-nav button{background:transparent;border:1.5px solid rgba(255,255,255,.15);color:#fff;padding:5px 12px;border-radius:20px;font-size:11px;cursor:pointer;transition:.2s;white-space:nowrap;flex-shrink:0}
+  .screen-nav button:hover{background:rgba(255,255,255,.08)}
+  .screen-nav button.active{background:#7c5cfc;border-color:#7c5cfc;font-weight:600}
+  .screens-wrapper{padding-top:64px}.screen{display:none}.screen.active{display:block}
+  .frame{margin:12px auto;max-width:1340px;border:2.5px solid #7c5cfc;border-radius:18px;overflow:hidden;background:#fff;box-shadow:0 8px 40px rgba(124,92,252,.12)}
+  .topbar{display:flex;justify-content:space-between;align-items:center;padding:10px 20px;border-bottom:1px solid #eee;background:#fafafc}
+  .topbar-left{display:flex;align-items:center;gap:10px}
+  .topbar-left .logo{display:inline-flex;align-items:center;gap:6px;font-weight:700;font-size:15px}
+  .topbar-left .logo .badge{background:#7c5cfc;color:#fff;font-size:9px;padding:2px 7px;border-radius:6px;font-weight:700}
+  .topbar-title{font-size:13px;font-weight:600;color:#444;margin-left:4px}
+  .topbar-right{display:flex;align-items:center;gap:5px}
+  .tab-btn{padding:4px 12px;font-size:11px;font-weight:600;border-radius:8px;cursor:pointer;border:none;background:transparent;color:#888;transition:.15s}
+  .tab-btn.active{background:#1a1a2e;color:#fff}
+  .tab-btn.has-new{position:relative}
+  .tab-btn.has-new::after{content:'';position:absolute;top:2px;right:2px;width:6px;height:6px;border-radius:50%;background:#f43f5e}
+  .icon-btn{width:28px;height:28px;border-radius:8px;border:1px solid #ddd;display:inline-flex;align-items:center;justify-content:center;font-size:13px;cursor:pointer;background:#fff;color:#666}
+  .layout{display:flex;min-height:580px}
+  .panel-left{width:330px;min-width:330px;border-right:1px solid #eee;display:flex;flex-direction:column;background:#fff}
+  .panel-right{flex:1;display:flex;flex-direction:column;background:#f7f7fb;overflow:hidden;position:relative}
+  .rp{position:absolute;inset:0;overflow-y:auto;transition:opacity .2s}
+  .rp.hidden{opacity:0;pointer-events:none;position:absolute}
+  .rp.visible{opacity:1;pointer-events:auto;position:relative}
+  .chat-body{flex:1;overflow-y:auto;padding:14px}
+  .chat-input-area{padding:10px 14px;border-top:1px solid #eee}
+  .chat-input{display:flex;align-items:center;border:1.5px solid #e0e0e0;border-radius:14px;padding:8px 12px;gap:8px;background:#fafafc}
+  .chat-input input{flex:1;border:none;background:transparent;font-size:12px;outline:none;color:#333}
+  .chat-input .attach{font-size:15px;opacity:.4;cursor:pointer}
+  .chat-input .send{width:26px;height:26px;border-radius:50%;background:#7c5cfc;color:#fff;border:none;font-size:12px;cursor:pointer;display:flex;align-items:center;justify-content:center}
+  .msg{margin-bottom:12px}
+  .msg.user .bubble{background:#f0edff;border-radius:14px 14px 4px 14px;padding:9px 13px;font-size:12.5px;line-height:1.5}
+  .msg.user .file-chip{display:inline-flex;align-items:center;gap:5px;background:#fff;border:1px solid #e0e0e0;border-radius:10px;padding:5px 10px;margin-top:5px;font-size:11px}
+  .msg.user .file-chip .ficon{width:24px;height:24px;border-radius:5px;background:linear-gradient(135deg,#fbbf24,#f59e0b);display:flex;align-items:center;justify-content:center;font-size:9px;color:#fff;font-weight:700;flex-shrink:0}
+  .mention{display:inline-flex;align-items:center;gap:3px;background:#ede9fe;color:#6d28d9;padding:1px 7px;border-radius:4px;font-size:11.5px;font-weight:500}
+  .msg.ai{display:flex;gap:7px}
+  .msg.ai .avatar{width:24px;height:24px;border-radius:50%;background:linear-gradient(135deg,#f87171,#fb923c);flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:10px;color:#fff;font-weight:700}
+  .msg.ai .bubble{background:#fff;border:1px solid #eee;border-radius:4px 14px 14px 14px;padding:9px 13px;font-size:12.5px;line-height:1.5;color:#333}
+  .plan-box{background:#fff;border:1px solid #e8e8ee;border-radius:14px;margin-bottom:12px;overflow:hidden}
+  .plan-header{display:flex;justify-content:space-between;align-items:center;padding:9px 13px}
+  .plan-header .title{font-size:12.5px;font-weight:600}.plan-header .count{font-size:10.5px;color:#888}
+  .plan-steps{padding:0 13px 10px}
+  .plan-step{display:flex;align-items:flex-start;gap:7px;padding:4px 0;font-size:12px;line-height:1.4}
+  .ck{width:17px;height:17px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:9px;margin-top:1px}
+  .ck.done{background:#22c55e;color:#fff}.ck.pending{background:#e8e8ee;color:#aaa}
+  .ck.spin{border:2px solid #e8e8ee;border-top-color:#7c5cfc;animation:spin .8s linear infinite;background:transparent}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .tx{color:#444}.tx.mt{color:#bbb}.tx.hi{font-weight:600;color:#7c5cfc}
+  .ap{padding:18px 22px}
+  .le{display:flex;gap:10px;margin-bottom:14px;position:relative}
+  .le::before{content:'';position:absolute;left:12px;top:26px;bottom:-14px;width:1.5px;background:#e0e0e8}
+  .le:last-child::before{display:none}
+  .li{width:26px;height:26px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;z-index:1}
+  .li.ag{background:#ede9fe;color:#7c5cfc}.li.tl{background:#dbeafe;color:#3b82f6}.li.th{background:#fef3c7;color:#d97706}.li.ok{background:#dcfce7;color:#16a34a}.li.ar{background:#fce7f3;color:#db2777}.li.cl{background:#ffedd5;color:#ea580c}.li.img{background:#ede9fe;color:#7c3aed}
+  .lb{flex:1;min-width:0}
+  .ll{font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;margin-bottom:2px}
+  .ll.ag-l{color:#7c5cfc}.ll.tl-l{color:#3b82f6}.ll.th-l{color:#d97706}.ll.ok-l{color:#16a34a}.ll.ar-l{color:#db2777}.ll.cl-l{color:#ea580c}.ll.img-l{color:#7c3aed}
+  .lt{font-size:12px;line-height:1.5;color:#444}
+  .lt code{background:#f1f5f9;padding:1px 4px;border-radius:3px;font-family:'SF Mono',monospace;font-size:10.5px;color:#334155}
+  .lc{margin-top:5px;background:#fff;border:1px solid #e8e8ee;border-radius:9px;padding:8px 12px;font-size:11.5px;line-height:1.45}
+  .kv{display:flex;gap:7px;padding:1.5px 0}.kv .k{color:#888;min-width:72px;font-weight:500;font-size:11px}.kv .v{color:#333;word-break:break-all;font-size:11.5px}
+  .art-header{display:flex;align-items:center;justify-content:space-between;padding:10px 20px;border-bottom:1px solid #eee;background:#fff}
+  .art-type{display:flex;align-items:center;gap:8px}
+  .atb{font-size:10px;font-weight:700;padding:3px 10px;border-radius:6px;text-transform:uppercase;letter-spacing:.5px}
+  .atb.blend{background:#ede9fe;color:#7c3aed}
+  .art-title{font-size:13px;font-weight:600;color:#1a1a2e}
+  .art-body{padding:18px 20px}
+  .img-card{background:#fff;border:1px solid #e8e8ee;border-radius:14px;overflow:hidden;margin-bottom:16px}
+  .img-card.dimmed{opacity:.4}
+  .img-area{min-height:220px;display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden}
+  .img-area.v1{background:linear-gradient(135deg,#f3f0ff,#ede9fe)}
+  .img-area.v2{background:linear-gradient(135deg,#eef2ff,#e0e7ff)}
+  .layers-visual{position:relative;width:150px;height:150px}
+  .layer-img{position:absolute;border-radius:10px;box-shadow:0 4px 12px rgba(0,0,0,.12)}
+  .layer-img.bg{width:130px;height:130px;background:linear-gradient(135deg,#a78bfa,#818cf8,#6366f1);top:0;left:10px;z-index:1}
+  .layer-img.fg{width:95px;height:75px;bottom:0;right:0;z-index:2;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:600;color:#fff;text-align:center;padding:6px;line-height:1.3}
+  .layer-img.fg.o{background:linear-gradient(135deg,#f97316,#ea580c)}
+  .layer-img.fg.p{background:linear-gradient(135deg,#ec4899,#db2777)}
+  .blend-icon{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);z-index:3;width:34px;height:34px;background:rgba(255,255,255,.95);border-radius:50%;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,.15);font-size:15px}
+  .card-foot{padding:12px 14px;border-top:1px solid #f3f4f6;display:flex;align-items:center;justify-content:space-between}
+  .vname{font-size:13px;font-weight:600;color:#1a1a2e}
+  .vsub{font-size:10.5px;color:#888;margin-top:2px}
+  .vstatus{display:flex;align-items:center;gap:5px;font-size:11.5px;font-weight:500;color:#059669}
+  .vstatus .dot{width:7px;height:7px;border-radius:50%;background:#10b981}
+  .vstatus.pending{color:#d97706}
+  .vstatus.pending .dot{background:#f59e0b}
+  .a-card{background:#fff;border:1px solid #e8e8ee;border-radius:12px;padding:14px 16px;margin-bottom:12px}
+  .a-card-title{font-size:12.5px;font-weight:700;color:#1a1a2e;margin-bottom:10px;display:flex;align-items:center;justify-content:space-between}
+  .a-card-title .sub{font-size:10px;font-weight:500;color:#888}
+  .a-row{display:flex;gap:8px;padding:4px 0;font-size:12px;border-bottom:1px solid #f5f5f5}
+  .a-row:last-child{border-bottom:none}
+  .a-row .a-k{color:#888;min-width:100px;font-weight:500;font-size:11px}
+  .a-row .a-v{color:#1a1a2e;flex:1;font-size:12px}
+  .a-v.green{color:#16a34a;font-weight:600}
+  .preview-toolbar{display:flex;align-items:center;gap:10px;margin-bottom:16px}
+  .var-sel{display:flex;background:#f3f4f6;border-radius:8px;padding:3px}
+  .var-btn{padding:6px 14px;border-radius:6px;border:none;font-size:11.5px;font-weight:500;cursor:pointer;background:transparent;color:#6b7280;font-family:inherit;transition:.2s}
+  .var-btn.active{background:#7c5cfc;color:#fff;box-shadow:0 2px 4px rgba(124,92,252,.3)}
+  .action-btns{margin-left:auto;display:flex;gap:6px}
+  .action-btn{padding:6px 14px;border-radius:8px;font-size:11.5px;font-weight:500;cursor:pointer;font-family:inherit;border:1px solid #e2e8f0;background:#fff;color:#374151;display:flex;align-items:center;gap:4px}
+  .action-btn.primary{background:linear-gradient(135deg,#7c5cfc,#6d28d9);color:#fff;border-color:transparent}
+  .empty-preview{display:flex;align-items:center;justify-content:center;height:100%;min-height:400px;color:#bbb;font-size:13px;font-style:italic}
+  .screen-desc{max-width:1340px;margin:0 auto;padding:8px 18px;font-size:11.5px;color:#666;display:flex;align-items:center;gap:7px}
+  .screen-desc .num{background:#7c5cfc;color:#fff;width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;flex-shrink:0}
+</style>
+</head>
+<body>
+<nav class="screen-nav">
+  <span class="label">Screen:</span>
+  <button class="active" onclick="show(0)">1. Query</button>
+  <button onclick="show(1)">2. Planning</button>
+  <button onclick="show(2)">3. Tool Calls</button>
+  <button onclick="show(3)">4. Artifact: Powerbank</button>
+  <button onclick="show(4)">5. Artifact: Copy 1 + Final</button>
+</nav>
+<div class="screens-wrapper">
+
+<!-- ════ S1: Query ════ -->
+<div class="screen active" id="s-0">
+<div class="screen-desc"><span class="num">1</span> User requests magic blend of two images with shared background. QueryClassifier routes to Planner.</div>
+<div class="frame"><div class="topbar"><div class="topbar-left"><span class="logo">Ask <span class="badge">AI</span></span><span class="topbar-title">Image Blending</span></div><div class="topbar-right"><button class="tab-btn active" onclick="switchTab(this,'activity')">Activity</button><button class="tab-btn" onclick="switchTab(this,'preview')">Preview</button><button class="icon-btn">&times;</button></div></div>
+<div class="layout">
+  <div class="panel-left"><div class="chat-body">
+    <div class="msg user"><div class="bubble"><span class="mention">@ Image 5</span> <span class="mention">@ Powerbank</span> magic blend these images with the shared background<div class="file-chip"><div class="ficon">PNG</div><div><div style="font-weight:500">MM_GRN_Cashew &amp; Almond_183 g.png</div><div style="font-size:10px;color:#94a3b8">image/png</div></div></div></div></div>
+  </div><div class="chat-input-area"><div class="chat-input"><span class="attach">&#x1F4CE;</span><input placeholder="Ask AI..." disabled><button class="send">&#x27A4;</button></div></div></div>
+  <div class="panel-right">
+    <div class="rp visible" data-tab="activity"><div class="ap">
+      <div class="le"><div class="li cl">QC</div><div class="lb"><div class="ll cl-l">QueryClassifier &middot; Analyzing Input</div><div class="lt">Received user objective with two <code>@mention</code> references ("Image 5" and "Powerbank") and an attached PNG file. Checking if this is an image manipulation requiring the imageAgent...<br><br>Detected:<br>&bull; <strong>Mentions:</strong> Image 5 (layer reference), Powerbank (variant name)<br>&bull; <strong>Attachment:</strong> MM_GRN_Cashew &amp; Almond_183 g.png (product image)<br>&bull; <strong>Intent:</strong> Image blending / merge operation</div></div></div>
+      <div class="le"><div class="li ok">&#x2713;</div><div class="lb"><div class="ll ok-l">QueryClassifier &middot; Result</div><div class="lt"><code>needsPlanning: true</code><br><code>confidence: 0.95</code><br><code>reason:</code> "Image blending operation requiring imageAgent with merge_multiple_layers tool. User referenced specific layers and variants with an additional product image to blend."</div></div></div>
+    </div></div>
+    <div class="rp hidden" data-tab="preview"><div class="empty-preview">No artifacts generated yet. Activity is running...</div></div>
+  </div>
+</div></div></div>
+
+<!-- ════ S2: Planning ════ -->
+<div class="screen" id="s-1">
+<div class="screen-desc"><span class="num">2</span> Planner creates a 4-step plan with detailed reasoning. Supervisor routes to imageAgent.</div>
+<div class="frame"><div class="topbar"><div class="topbar-left"><span class="logo">Ask <span class="badge">AI</span></span><span class="topbar-title">Image Blending</span></div><div class="topbar-right"><button class="tab-btn active" onclick="switchTab(this,'activity')">Activity</button><button class="tab-btn" onclick="switchTab(this,'preview')">Preview</button><button class="icon-btn">&times;</button></div></div>
+<div class="layout">
+  <div class="panel-left"><div class="chat-body">
+    <div class="msg user"><div class="bubble"><span class="mention">@ Image 5</span> <span class="mention">@ Powerbank</span> magic blend these images with the shared background<div class="file-chip"><div class="ficon">PNG</div><div><div style="font-weight:500">MM_GRN_Cashew &amp; Almond_183 g.png</div></div></div></div></div>
+    <div class="msg ai"><div class="avatar">R</div><div class="bubble">Right on it. Let me create a plan and call the agents to work on it.</div></div>
+    <div class="plan-box"><div class="plan-header"><span class="title">Plan of action</span><span class="count">4 steps</span></div><div class="plan-steps">
+      <div class="plan-step"><span class="ck pending"></span><span class="tx mt">Analyse layers, variants &amp; attached image</span></div>
+      <div class="plan-step"><span class="ck pending"></span><span class="tx mt">Route to Image Agent for blending</span></div>
+      <div class="plan-step"><span class="ck pending"></span><span class="tx mt">Merge layers with shared background per variant</span></div>
+      <div class="plan-step"><span class="ck pending"></span><span class="tx mt">Generate blended image previews</span></div>
+    </div></div>
+  </div><div class="chat-input-area"><div class="chat-input"><span class="attach">&#x1F4CE;</span><input placeholder="Ask AI..." disabled><button class="send">&#x27A4;</button></div></div></div>
+  <div class="panel-right">
+    <div class="rp visible" data-tab="activity"><div class="ap">
+      <div class="le"><div class="li th">&#x1F914;</div><div class="lb"><div class="ll th-l">Planner &middot; Analyzing Request</div><div class="lt">User wants to "magic blend" two images with a shared background.<br><br><strong>What the user provided:</strong><br>&bull; <strong>@Image 5</strong> &mdash; a layer in the current project canvas containing the background image shared across variants<br>&bull; <strong>@Powerbank</strong> &mdash; a variant name. The project has two variants: "Powerbank" and "Powerbank Copy 1", each with different foreground image URLs<br>&bull; <strong>Attached PNG</strong> &mdash; <code>MM_GRN_Cashew &amp; Almond_183 g.png</code>, a product image to blend into the composition<br><br><strong>What needs to happen:</strong><br>Magic blend combines multiple image layers into a single composited output. The <code>imageAgent</code> has the <code>editImage</code> tool supporting <code>merge_multiple_layers</code>. Since there are <strong>two variants</strong>, we need two separate blend operations &mdash; each producing its own artifact &mdash; one per variant with different foreground URLs but the same shared background.</div></div></div>
+      <div class="le"><div class="li ag">P</div><div class="lb"><div class="ll ag-l">Planner &middot; Execution Plan</div><div class="lc">
+        <div class="kv"><span class="k">Step 1</span><span class="v">Analyse layers, resolve @mentions to image URLs</span></div>
+        <div class="kv"><span class="k">Step 2</span><span class="v">Route to <code>imageAgent</code></span></div>
+        <div class="kv"><span class="k">Step 3</span><span class="v"><code>editImage</code> (merge_multiple_layers) &times;2 &mdash; one per variant, each returns a separate artifact</span></div>
+        <div class="kv"><span class="k">Step 4</span><span class="v">Return blended image artifacts for preview</span></div>
+      </div></div></div>
+      <div class="le"><div class="li ag">S</div><div class="lb"><div class="ll ag-l">Supervisor &middot; Routing</div><div class="lt">Routing to <code>imageAgent</code> which has access to <code>editImage</code>, <code>generateImage</code>, <code>removeBackground</code>, <code>extendImage</code>, and <code>eraseImage</code> tools.</div></div></div>
+    </div></div>
+    <div class="rp hidden" data-tab="preview"><div class="empty-preview">No artifacts generated yet. Planning in progress...</div></div>
+  </div>
+</div></div></div>
+
+<!-- ════ S3: Tool Calls ════ -->
+<div class="screen" id="s-2">
+<div class="screen-desc"><span class="num">3</span> imageAgent runs two parallel editImage calls. Activity shows both tool calls with full parameters.</div>
+<div class="frame"><div class="topbar"><div class="topbar-left"><span class="logo">Ask <span class="badge">AI</span></span><span class="topbar-title">Image Blending</span></div><div class="topbar-right"><button class="tab-btn active" onclick="switchTab(this,'activity')">Activity</button><button class="tab-btn" onclick="switchTab(this,'preview')">Preview</button><button class="icon-btn">&times;</button></div></div>
+<div class="layout">
+  <div class="panel-left"><div class="chat-body">
+    <div class="msg user"><div class="bubble"><span class="mention">@ Image 5</span> <span class="mention">@ Powerbank</span> magic blend these images with the shared background<div class="file-chip"><div class="ficon">PNG</div><div><div style="font-weight:500">MM_GRN_Cashew &amp; Almond_183 g.png</div></div></div></div></div>
+    <div class="msg ai"><div class="avatar">R</div><div class="bubble">Right on it. Let me create a plan and call the agents to work on it.</div></div>
+    <div class="plan-box"><div class="plan-header"><span class="title">Plan of action</span><span class="count">3/4</span></div><div class="plan-steps">
+      <div class="plan-step"><span class="ck done">&#x2713;</span><span class="tx">Analyse layers, variants &amp; attached image</span></div>
+      <div class="plan-step"><span class="ck done">&#x2713;</span><span class="tx">Route to Image Agent for blending</span></div>
+      <div class="plan-step"><span class="ck spin"></span><span class="tx hi">Merge layers with shared background per variant</span></div>
+      <div class="plan-step"><span class="ck pending"></span><span class="tx mt">Generate blended image previews</span></div>
+    </div></div>
+  </div><div class="chat-input-area"><div class="chat-input"><span class="attach">&#x1F4CE;</span><input placeholder="Ask AI..." disabled><button class="send">&#x27A4;</button></div></div></div>
+  <div class="panel-right">
+    <div class="rp visible" data-tab="activity"><div class="ap">
+      <div class="le"><div class="li ok">&#x2713;</div><div class="lb"><div class="ll ok-l">Steps 1&ndash;2 Complete</div><div class="lt">Layers analysed, @mentions resolved to image URLs, routed to imageAgent.</div></div></div>
+      <div class="le"><div class="li img">iA</div><div class="lb"><div class="ll img-l">imageAgent &middot; Started</div><div class="lt">I'll magic blend these images with the shared background. I've identified two variants:<br>&bull; <strong>Powerbank</strong> &mdash; foreground: <code>...8b046d08.png</code><br>&bull; <strong>Powerbank Copy 1</strong> &mdash; foreground: <code>...400634cc.png</code><br><br>Running both blend operations. Each will produce a <strong>separate artifact</strong>.</div></div></div>
+      <div class="le"><div class="li tl">&#x2699;</div><div class="lb"><div class="ll tl-l">Tool Call 1 &middot; editImage (merge_multiple_layers)</div><div class="lc">
+        <div class="kv"><span class="k">Variant</span><span class="v"><strong>Powerbank</strong></span></div>
+        <div class="kv"><span class="k">Operation</span><span class="v"><code>merge_multiple_layers</code></span></div>
+        <div class="kv"><span class="k">Prompt</span><span class="v">magic blend these images with the shared background</span></div>
+        <div class="kv"><span class="k">Image 1</span><span class="v"><code>...8b046d08.png</code> (foreground)</span></div>
+        <div class="kv"><span class="k">Image 2</span><span class="v"><code>...Cashew_and_Almond.png</code> (product)</span></div>
+        <div class="kv"><span class="k">Background</span><span class="v">Image 5 shared layer</span></div>
+      </div></div></div>
+      <div class="le"><div class="li tl">&#x2699;</div><div class="lb"><div class="ll tl-l">Tool Call 2 &middot; editImage (merge_multiple_layers)</div><div class="lc">
+        <div class="kv"><span class="k">Variant</span><span class="v"><strong>Powerbank Copy 1</strong></span></div>
+        <div class="kv"><span class="k">Operation</span><span class="v"><code>merge_multiple_layers</code></span></div>
+        <div class="kv"><span class="k">Prompt</span><span class="v">magic blend these images with the shared background</span></div>
+        <div class="kv"><span class="k">Image 1</span><span class="v"><code>...400634cc.png</code> (foreground)</span></div>
+        <div class="kv"><span class="k">Image 2</span><span class="v"><code>...Cashew_and_Almond.png</code> (product)</span></div>
+        <div class="kv"><span class="k">Background</span><span class="v">Image 5 shared layer</span></div>
+      </div></div></div>
+      <div class="le"><div class="li img">iA</div><div class="lb"><div class="ll img-l">imageAgent &middot; Processing</div><div class="lt">Both blend operations submitted to the <code>nano-banana</code> model. Waiting for results...</div></div></div>
+    </div></div>
+    <div class="rp hidden" data-tab="preview"><div class="empty-preview">Blending in progress... artifacts will appear here when ready.</div></div>
+  </div>
+</div></div></div>
+
+<!-- ════ S4: Artifact 1 — Powerbank ════ -->
+<div class="screen" id="s-3">
+<div class="screen-desc"><span class="num">4</span> First artifact created: <strong>BLEND_RESULT &mdash; Powerbank</strong>. Preview activates showing this artifact. Second blend still processing.</div>
+<div class="frame"><div class="topbar"><div class="topbar-left"><span class="logo">Ask <span class="badge">AI</span></span><span class="topbar-title">Image Blending</span></div><div class="topbar-right"><button class="tab-btn" onclick="switchTab(this,'activity')">Activity</button><button class="tab-btn active has-new" onclick="switchTab(this,'preview')">Preview</button><button class="icon-btn">&times;</button></div></div>
+<div class="layout">
+  <div class="panel-left"><div class="chat-body">
+    <div class="msg user"><div class="bubble"><span class="mention">@ Image 5</span> <span class="mention">@ Powerbank</span> magic blend these images with the shared background<div class="file-chip"><div class="ficon">PNG</div><div><div style="font-weight:500">MM_GRN_Cashew &amp; Almond_183 g.png</div></div></div></div></div>
+    <div class="msg ai"><div class="avatar">R</div><div class="bubble">Right on it. Let me create a plan and call the agents to work on it.</div></div>
+    <div class="plan-box"><div class="plan-header"><span class="title">Plan of action</span><span class="count">3/4</span></div><div class="plan-steps">
+      <div class="plan-step"><span class="ck done">&#x2713;</span><span class="tx">Analyse layers, variants &amp; attached image</span></div>
+      <div class="plan-step"><span class="ck done">&#x2713;</span><span class="tx">Route to Image Agent for blending</span></div>
+      <div class="plan-step"><span class="ck spin"></span><span class="tx hi">Merge layers with shared background per variant</span></div>
+      <div class="plan-step"><span class="ck pending"></span><span class="tx mt">Generate blended image previews</span></div>
+    </div></div>
+  </div><div class="chat-input-area"><div class="chat-input"><span class="attach">&#x1F4CE;</span><input placeholder="Ask AI..." disabled><button class="send">&#x27A4;</button></div></div></div>
+  <div class="panel-right">
+    <!-- ACTIVITY -->
+    <div class="rp hidden" data-tab="activity"><div class="ap">
+      <div class="le"><div class="li ok">&#x2713;</div><div class="lb"><div class="ll ok-l">Steps 1&ndash;2 Complete</div><div class="lt">Layers analysed, routed to imageAgent.</div></div></div>
+      <div class="le"><div class="li tl">&#x2699;</div><div class="lb"><div class="ll tl-l">Tool Call 1 &middot; editImage &mdash; Powerbank</div><div class="lt">merge_multiple_layers with foreground <code>8b046d08.png</code> + product image + shared background.</div></div></div>
+      <div class="le"><div class="li ok">&#x2713;</div><div class="lb"><div class="ll ok-l">Tool Result 1 &middot; Powerbank Blended</div><div class="lt">Blend successful. Generated image ID: <code>752c07d2</code>. Model: <code>nano-banana</code>.</div></div></div>
+      <div class="le"><div class="li ar">&#x2B22;</div><div class="lb"><div class="ll ar-l">Artifact 1 Created &middot; BLEND_RESULT</div><div class="lt">Powerbank variant blended successfully. Image artifact <code>752c07d2</code> ready for preview. <strong>Switching to Preview tab.</strong></div></div></div>
+      <div class="le"><div class="li tl">&#x2699;</div><div class="lb"><div class="ll tl-l">Tool Call 2 &middot; editImage &mdash; Powerbank Copy 1</div><div class="lt">merge_multiple_layers with foreground <code>400634cc.png</code> + product image + shared background. <em>Still processing...</em></div></div></div>
+    </div></div>
+    <!-- PREVIEW: Artifact 1 only -->
+    <div class="rp visible" data-tab="preview">
+      <div class="art-header"><div class="art-type"><span class="atb blend">BLEND_RESULT</span><span class="art-title">Artifact 1 &mdash; Powerbank</span></div></div>
+      <div class="art-body">
+        <!-- Powerbank card - DONE -->
+        <div class="img-card">
+          <div class="img-area v1">
+            <div class="layers-visual">
+              <div class="layer-img bg"></div>
+              <div class="layer-img fg o">Cashew &amp;<br>Almond<br>183g</div>
+              <div class="blend-icon">&#10024;</div>
+            </div>
+          </div>
+          <div class="card-foot">
+            <div><div class="vname">Powerbank</div><div class="vsub">Image 5 &middot; ID: 752c07d2 &middot; Model: nano-banana</div></div>
+            <div class="vstatus"><span class="dot"></span>Blended</div>
+          </div>
+        </div>
+        <div class="a-card">
+          <div class="a-card-title">Artifact Details <span class="sub">BLEND_RESULT #1</span></div>
+          <div class="a-row"><span class="a-k">Variant</span><span class="a-v">Powerbank</span></div>
+          <div class="a-row"><span class="a-k">Image ID</span><span class="a-v"><code>752c07d2</code></span></div>
+          <div class="a-row"><span class="a-k">Model</span><span class="a-v">nano-banana</span></div>
+          <div class="a-row"><span class="a-k">Operation</span><span class="a-v"><code>merge_multiple_layers</code></span></div>
+          <div class="a-row"><span class="a-k">Foreground</span><span class="a-v"><code>...8b046d08.png</code></span></div>
+          <div class="a-row"><span class="a-k">Product</span><span class="a-v">MM_GRN_Cashew &amp; Almond_183 g.png</span></div>
+          <div class="a-row"><span class="a-k">Background</span><span class="a-v">Image 5 shared layer</span></div>
+          <div class="a-row"><span class="a-k">Status</span><span class="a-v green">Done</span></div>
+        </div>
+        <!-- Powerbank Copy 1 - still processing -->
+        <div class="img-card dimmed">
+          <div class="img-area v2" style="min-height:100px">
+            <div style="font-size:12px;color:#999">Processing...</div>
+          </div>
+          <div class="card-foot">
+            <div><div class="vname" style="color:#aaa">Powerbank Copy 1</div><div class="vsub">Waiting for blend result...</div></div>
+            <div class="vstatus pending"><span class="dot"></span>Processing</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div></div></div>
+
+<!-- ════ S5: Artifact 2 — Powerbank Copy 1 + Final ════ -->
+<div class="screen" id="s-4">
+<div class="screen-desc"><span class="num">5</span> Second artifact created: <strong>BLEND_RESULT &mdash; Powerbank Copy 1</strong>. Preview now shows both artifacts. Workflow complete.</div>
+<div class="frame"><div class="topbar"><div class="topbar-left"><span class="logo">Ask <span class="badge">AI</span></span><span class="topbar-title">Image Blending</span></div><div class="topbar-right"><button class="tab-btn" onclick="switchTab(this,'activity')">Activity</button><button class="tab-btn active has-new" onclick="switchTab(this,'preview')">Preview</button><button class="icon-btn">&times;</button></div></div>
+<div class="layout">
+  <div class="panel-left"><div class="chat-body">
+    <div class="msg user"><div class="bubble"><span class="mention">@ Image 5</span> <span class="mention">@ Powerbank</span> magic blend these images with the shared background<div class="file-chip"><div class="ficon">PNG</div><div><div style="font-weight:500">MM_GRN_Cashew &amp; Almond_183 g.png</div></div></div></div></div>
+    <div class="msg ai"><div class="avatar">R</div><div class="bubble">Right on it. Let me create a plan and call the agents to work on it.</div></div>
+    <div class="plan-box"><div class="plan-header"><span class="title">Plan of action</span><span class="count" style="color:#16a34a">4/4 &#x2713;</span></div><div class="plan-steps">
+      <div class="plan-step"><span class="ck done">&#x2713;</span><span class="tx">Analyse layers, variants &amp; attached image</span></div>
+      <div class="plan-step"><span class="ck done">&#x2713;</span><span class="tx">Route to Image Agent for blending</span></div>
+      <div class="plan-step"><span class="ck done">&#x2713;</span><span class="tx">Merge layers with shared background per variant</span></div>
+      <div class="plan-step"><span class="ck done">&#x2713;</span><span class="tx">Generate blended image previews</span></div>
+    </div></div>
+    <div class="msg ai"><div class="avatar">R</div><div class="bubble">I've blended both images with the shared background. You can preview the results &mdash; toggle between <strong>Powerbank</strong> and <strong>Powerbank Copy 1</strong> variants.</div></div>
+  </div><div class="chat-input-area"><div class="chat-input"><span class="attach">&#x1F4CE;</span><input placeholder="Ask AI..."><button class="send">&#x27A4;</button></div></div></div>
+  <div class="panel-right">
+    <!-- ACTIVITY -->
+    <div class="rp hidden" data-tab="activity"><div class="ap">
+      <div class="le"><div class="li ok">&#x2713;</div><div class="lb"><div class="ll ok-l">Steps 1&ndash;2 Complete</div><div class="lt">Layers analysed, routed to imageAgent.</div></div></div>
+      <div class="le"><div class="li ok">&#x2713;</div><div class="lb"><div class="ll ok-l">Tool Result 1 &middot; Powerbank</div><div class="lt">Blend successful. Image ID: <code>752c07d2</code>. Model: <code>nano-banana</code>.</div></div></div>
+      <div class="le"><div class="li ar">&#x2B22;</div><div class="lb"><div class="ll ar-l">Artifact 1 Created &middot; BLEND_RESULT</div><div class="lt">Powerbank variant &mdash; image <code>752c07d2</code></div></div></div>
+      <div class="le"><div class="li ok">&#x2713;</div><div class="lb"><div class="ll ok-l">Tool Result 2 &middot; Powerbank Copy 1</div><div class="lt">Blend successful. Image ID: <code>3b82d2dc</code>. Model: <code>nano-banana</code>.</div></div></div>
+      <div class="le"><div class="li ar">&#x2B22;</div><div class="lb"><div class="ll ar-l">Artifact 2 Created &middot; BLEND_RESULT</div><div class="lt">Powerbank Copy 1 variant &mdash; image <code>3b82d2dc</code>. <strong>Both artifacts now in Preview.</strong></div></div></div>
+      <div class="le"><div class="li th">&#x1F914;</div><div class="lb"><div class="ll th-l">Planner &middot; Execution Recap</div><div class="lt">The user requested a magic blend of images referenced by @Image 5 and @Powerbank with an attached product PNG.<br><br><strong>What happened:</strong><br>1. QueryClassifier identified this as an image manipulation task<br>2. Planner created a 4-step plan<br>3. Supervisor routed to imageAgent<br>4. imageAgent resolved @mentions to specific image URLs per variant<br>5. Two parallel <code>merge_multiple_layers</code> calls ran:<br>&nbsp;&nbsp;&bull; Powerbank: foreground <code>8b046d08.png</code> + product + shared bg &rarr; artifact <code>752c07d2</code><br>&nbsp;&nbsp;&bull; Powerbank Copy 1: foreground <code>400634cc.png</code> + product + shared bg &rarr; artifact <code>3b82d2dc</code><br>6. Both completed via <code>nano-banana</code> model<br>7. <strong>2 separate BLEND_RESULT artifacts</strong> generated, each shown as its own card in Preview</div></div></div>
+      <div class="le"><div class="li ag">S</div><div class="lb"><div class="ll ag-l">Supervisor &middot; Workflow Complete</div><div class="lt">imageAgent finished. 2 blend artifacts ready. Routing to END.</div></div></div>
+    </div></div>
+    <!-- PREVIEW: Both artifacts -->
+    <div class="rp visible" data-tab="preview">
+      <div class="art-header"><div class="art-type"><span class="atb blend">BLEND_RESULT</span><span class="art-title">2 Blended Artifacts</span></div></div>
+      <div class="art-body">
+        <div class="preview-toolbar">
+          <div class="var-sel">
+            <button class="var-btn active">All Variants</button>
+            <button class="var-btn">Powerbank</button>
+            <button class="var-btn">Powerbank Copy 1</button>
+          </div>
+          <div class="action-btns">
+            <button class="action-btn">&#x21bb; Regenerate</button>
+            <button class="action-btn primary">&#x2713; Apply to Canvas</button>
+          </div>
+        </div>
+        <!-- Artifact 1 -->
+        <div class="a-card" style="padding:0;overflow:hidden;border-radius:14px">
+          <div style="padding:8px 14px;background:#faf8ff;border-bottom:1px solid #ede9fe;display:flex;align-items:center;justify-content:space-between">
+            <span style="font-size:10px;font-weight:700;color:#7c3aed;text-transform:uppercase;letter-spacing:.5px">Artifact 1 &mdash; BLEND_RESULT</span>
+            <span style="font-size:10px;color:#888">ID: 752c07d2</span>
+          </div>
+          <div class="img-card" style="border:none;border-radius:0;margin:0">
+            <div class="img-area v1">
+              <div class="layers-visual">
+                <div class="layer-img bg"></div>
+                <div class="layer-img fg o">Cashew &amp;<br>Almond<br>183g</div>
+                <div class="blend-icon">&#10024;</div>
+              </div>
+            </div>
+            <div class="card-foot">
+              <div><div class="vname">Powerbank</div><div class="vsub">Image 5 &middot; Layer cc4639...e7 &middot; nano-banana</div></div>
+              <div class="vstatus"><span class="dot"></span>Blended</div>
+            </div>
+          </div>
+        </div>
+        <!-- Artifact 2 -->
+        <div class="a-card" style="padding:0;overflow:hidden;border-radius:14px">
+          <div style="padding:8px 14px;background:#eef2ff;border-bottom:1px solid #c7d2fe;display:flex;align-items:center;justify-content:space-between">
+            <span style="font-size:10px;font-weight:700;color:#7c3aed;text-transform:uppercase;letter-spacing:.5px">Artifact 2 &mdash; BLEND_RESULT</span>
+            <span style="font-size:10px;color:#888">ID: 3b82d2dc</span>
+          </div>
+          <div class="img-card" style="border:none;border-radius:0;margin:0">
+            <div class="img-area v2">
+              <div class="layers-visual">
+                <div class="layer-img bg" style="background:linear-gradient(135deg,#818cf8,#6366f1,#4f46e5)"></div>
+                <div class="layer-img fg p">Cashew &amp;<br>Almond<br>183g</div>
+                <div class="blend-icon">&#10024;</div>
+              </div>
+            </div>
+            <div class="card-foot">
+              <div><div class="vname">Powerbank Copy 1</div><div class="vsub">Image 5 &middot; Layer cc4639...e7 &middot; nano-banana</div></div>
+              <div class="vstatus"><span class="dot"></span>Blended</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div></div></div>
+
+</div>
+<script>
+function show(i){
+  document.querySelectorAll('.screen').forEach((s,j)=>s.classList.toggle('active',j===i));
+  document.querySelectorAll('.screen-nav button').forEach((b,j)=>b.classList.toggle('active',j===i));
+}
+function switchTab(btn,tab){
+  const frame=btn.closest('.frame');
+  frame.querySelectorAll('.tab-btn').forEach(b=>{b.classList.remove('active');b.classList.remove('has-new')});
+  btn.classList.add('active');
+  frame.querySelectorAll('.rp').forEach(p=>{
+    if(p.dataset.tab===tab){p.classList.remove('hidden');p.classList.add('visible')}
+    else{p.classList.add('hidden');p.classList.remove('visible')}
+  });
+}
+</script>
+</body>
+</html>
