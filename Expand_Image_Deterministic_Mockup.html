@@ -1,0 +1,520 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Expand Image - Deterministic Flow</title>
+<style>
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f0f0f5;color:#1a1a2e}
+
+  .screen-nav{position:fixed;top:0;left:0;right:0;z-index:100;background:#1a1a2e;color:#fff;display:flex;align-items:center;padding:0 16px;height:52px;gap:4px;box-shadow:0 2px 12px rgba(0,0,0,.25)}
+  .screen-nav .label{font-size:12px;opacity:.5;margin-right:6px;white-space:nowrap}
+  .screen-nav button{background:transparent;border:1.5px solid rgba(255,255,255,.15);color:#fff;padding:5px 12px;border-radius:20px;font-size:11px;cursor:pointer;transition:.2s;white-space:nowrap}
+  .screen-nav button:hover{background:rgba(255,255,255,.08)}
+  .screen-nav button.active{background:#7c5cfc;border-color:#7c5cfc;font-weight:600}
+  .screens-wrapper{padding-top:64px}.screen{display:none}.screen.active{display:block}
+
+  .frame{margin:12px auto;max-width:1340px;border:2.5px solid #7c5cfc;border-radius:18px;overflow:hidden;background:#fff;box-shadow:0 8px 40px rgba(124,92,252,.12)}
+  .topbar{display:flex;justify-content:space-between;align-items:center;padding:10px 20px;border-bottom:1px solid #eee;background:#fafafc}
+  .topbar-left{display:flex;align-items:center;gap:10px}
+  .topbar-left .logo{display:inline-flex;align-items:center;gap:6px;font-weight:700;font-size:15px}
+  .topbar-left .logo .badge{background:#7c5cfc;color:#fff;font-size:9px;padding:2px 7px;border-radius:6px;font-weight:700}
+  .topbar-title{font-size:13px;font-weight:600;color:#444;margin-left:4px}
+  .topbar-right{display:flex;align-items:center;gap:5px}
+  .tab-btn{padding:4px 12px;font-size:11px;font-weight:600;border-radius:8px;cursor:pointer;border:none;background:transparent;color:#888;transition:.15s}
+  .tab-btn.active{background:#1a1a2e;color:#fff}
+  .icon-btn{width:28px;height:28px;border-radius:8px;border:1px solid #ddd;display:inline-flex;align-items:center;justify-content:center;font-size:13px;cursor:pointer;background:#fff;color:#666}
+  .layout{display:flex;min-height:580px}
+
+  .panel-left{width:330px;min-width:330px;border-right:1px solid #eee;display:flex;flex-direction:column;background:#fff}
+  .chat-body{flex:1;overflow-y:auto;padding:14px}
+  .chat-input-area{padding:10px 14px;border-top:1px solid #eee}
+  .chat-input{display:flex;align-items:center;border:1.5px solid #e0e0e0;border-radius:14px;padding:8px 12px;gap:8px;background:#fafafc}
+  .chat-input input{flex:1;border:none;background:transparent;font-size:12px;outline:none;color:#333}
+  .chat-input .send{width:26px;height:26px;border-radius:50%;background:#7c5cfc;color:#fff;border:none;font-size:12px;cursor:pointer;display:flex;align-items:center;justify-content:center}
+
+  .msg{margin-bottom:12px}
+  .msg.user .bubble{background:#f0edff;border-radius:14px 14px 4px 14px;padding:9px 13px;font-size:12.5px;line-height:1.5}
+  .msg.ai{display:flex;gap:7px}
+  .msg.ai .avatar{width:24px;height:24px;border-radius:50%;background:linear-gradient(135deg,#f87171,#fb923c);flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:10px;color:#fff;font-weight:700}
+  .msg.ai .bubble{background:#fff;border:1px solid #eee;border-radius:4px 14px 14px 14px;padding:9px 13px;font-size:12.5px;line-height:1.5;color:#333}
+
+  /* Plan card */
+  .plan-box{background:#fff;border:1px solid #e8e8ee;border-radius:14px;margin-bottom:12px;overflow:hidden}
+  .plan-header{display:flex;justify-content:space-between;align-items:center;padding:9px 13px;border-bottom:1px solid #f3f3f8}
+  .plan-header .p-title{font-size:12.5px;font-weight:600;display:flex;align-items:center;gap:6px}
+  .plan-header .p-title svg{width:14px;height:14px;color:#7c5cfc}
+  .plan-header .p-count{font-size:10.5px;color:#888;background:#f3f3f8;padding:2px 8px;border-radius:10px;font-weight:600}
+  .plan-steps{padding:6px 13px 10px}
+  .plan-step{display:flex;align-items:flex-start;gap:7px;padding:5px 0;font-size:12px;line-height:1.4}
+  .ck{width:18px;height:18px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:9px;margin-top:1px}
+  .ck.done{background:#22c55e;color:#fff}
+  .ck.active{border:2px solid #7c5cfc;background:#fff;position:relative}
+  .ck.active::after{content:'';width:7px;height:7px;border-radius:50%;background:#7c5cfc;animation:pulse-d 1.2s ease-in-out infinite}
+  @keyframes pulse-d{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.4;transform:scale(.7)}}
+  .ck.pending{background:#f0f0f5;border:1.5px solid #d1d5db}
+  .tx{color:#444}.tx.done-t{color:#aaa;text-decoration:line-through}.tx.active-t{font-weight:600;color:#7c5cfc}
+
+  .status-bar{display:flex;align-items:center;gap:8px;padding:8px 12px;border-radius:10px;font-size:12px;font-weight:500;margin-bottom:12px}
+  .status-bar.success{background:#f0fdf4;border:1px solid #bbf7d0;color:#166534}
+  .status-bar.awaiting{background:#fffbeb;border:1px solid #fde68a;color:#92400e}
+  .status-bar.running{background:#eff6ff;border:1px solid #bfdbfe;color:#1e40af}
+  .status-bar .s-icon{width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+  .status-bar.success .s-icon{background:#22c55e}
+  .status-bar.awaiting .s-icon{background:#f59e0b}
+  .status-bar.running .s-icon{background:#3b82f6}
+  .status-bar .s-icon svg{width:12px;height:12px}
+
+  /* Right panel */
+  .panel-right{flex:1;display:flex;flex-direction:column;background:#f7f7fb;overflow:hidden}
+  .rp-view{display:none;flex:1;overflow-y:auto}
+  .rp-view.active{display:block}
+
+  /* Activity log */
+  .ap{padding:18px 22px}
+  .le{display:flex;gap:10px;margin-bottom:14px;position:relative}
+  .le::before{content:'';position:absolute;left:12px;top:26px;bottom:-14px;width:1.5px;background:#e0e0e8}
+  .le:last-child::before{display:none}
+  .li{width:26px;height:26px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;z-index:1}
+  .li.det{background:#fef3c7;color:#d97706}
+  .li.tl{background:#dbeafe;color:#3b82f6}
+  .li.ok{background:#dcfce7;color:#16a34a}
+  .li.art{background:#ede9fe;color:#7c3aed}
+  .li.spin{border:2.5px solid #e0e0e8;border-top-color:#3b82f6;animation:spin .7s linear infinite;background:transparent}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .lb{flex:1;min-width:0}
+  .ll{font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;margin-bottom:2px}
+  .ll.det-l{color:#d97706}.ll.tl-l{color:#3b82f6}.ll.ok-l{color:#16a34a}.ll.art-l{color:#7c3aed}
+  .lt{font-size:12px;line-height:1.5;color:#444}
+  .lt code{background:#f1f5f9;padding:1px 4px;border-radius:3px;font-family:'SF Mono',monospace;font-size:10.5px;color:#334155}
+  .lc{margin-top:5px;background:#fff;border:1px solid #e8e8ee;border-radius:9px;padding:8px 12px;font-size:11.5px;line-height:1.45}
+  .kv{display:flex;gap:7px;padding:1.5px 0}.kv .k{color:#888;min-width:72px;font-weight:500;font-size:11px}.kv .v{color:#333;word-break:break-all;font-size:11.5px}
+
+  /* Artifact header */
+  .art-header{display:flex;align-items:center;justify-content:space-between;padding:10px 20px;border-bottom:1px solid #eee;background:#fff}
+  .art-type{display:flex;align-items:center;gap:8px}
+  .atb{font-size:10px;font-weight:700;padding:3px 10px;border-radius:6px;text-transform:uppercase;letter-spacing:.5px}
+  .atb.img{background:#ede9fe;color:#7c3aed}
+  .atb.done{background:#dcfce7;color:#166534}
+  .art-title{font-size:13px;font-weight:600;color:#1a1a2e}
+
+  .btn{padding:7px 18px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;border:none;font-family:inherit;transition:.15s}
+  .btn.primary{background:#7c5cfc;color:#fff}
+  .btn.green{background:#22c55e;color:#fff}
+  .btn.outline{background:#fff;border:1.5px solid #e0e0e0;color:#555}
+
+  /* Image canvas */
+  .img-canvas{flex:1;display:flex;align-items:center;justify-content:center;padding:24px;position:relative}
+  .img-frame{position:relative;border-radius:12px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,.1)}
+
+  /* Fake image placeholder */
+  .fake-img{width:400px;height:300px;background:linear-gradient(145deg,#fbbf24 0%,#f59e0b 30%,#d97706 100%);display:flex;align-items:center;justify-content:center;position:relative}
+  .fake-img .product{width:140px;height:180px;background:rgba(255,255,255,.25);border-radius:12px;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:4px}
+  .fake-img .product .p-icon{font-size:40px}
+  .fake-img .product .p-label{font-size:11px;color:rgba(255,255,255,.8);font-weight:600}
+
+  /* Extend mode canvas */
+  .extend-canvas{position:relative;width:560px;height:380px;background:#1a1a2e;border-radius:12px;overflow:hidden;display:flex;align-items:center;justify-content:center}
+  .extend-inner-img{width:320px;height:240px;background:linear-gradient(145deg,#fbbf24 0%,#f59e0b 30%,#d97706 100%);border-radius:8px;position:relative;z-index:2;display:flex;align-items:center;justify-content:center;box-shadow:0 0 0 2px #7c5cfc}
+  .extend-inner-img .product{width:100px;height:130px;background:rgba(255,255,255,.25);border-radius:8px;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:2px}
+  .extend-inner-img .product .p-icon{font-size:28px}
+  .extend-inner-img .product .p-label{font-size:9px;color:rgba(255,255,255,.8);font-weight:600}
+
+  /* Dashed extend guides */
+  .extend-guide{position:absolute;border:1.5px dashed rgba(124,92,252,.5);z-index:1}
+  .extend-guide.top{top:20px;left:80px;right:80px;height:46px;border-bottom:none;border-radius:8px 8px 0 0}
+  .extend-guide.bottom{bottom:20px;left:80px;right:80px;height:46px;border-top:none;border-radius:0 0 8px 8px}
+  .extend-guide.left{left:20px;top:80px;bottom:80px;width:46px;border-right:none;border-radius:8px 0 0 8px}
+  .extend-guide.right{right:20px;top:80px;bottom:80px;width:46px;border-left:none;border-radius:0 8px 8px 0}
+
+  .extend-label{position:absolute;font-size:10px;font-weight:600;color:#a78bfa;z-index:3;background:rgba(26,26,46,.8);padding:2px 6px;border-radius:4px}
+  .extend-label.t-label{top:28px;left:50%;transform:translateX(-50%)}
+  .extend-label.b-label{bottom:28px;left:50%;transform:translateX(-50%)}
+  .extend-label.l-label{left:24px;top:50%;transform:translateY(-50%)}
+  .extend-label.r-label{right:24px;top:50%;transform:translateY(-50%)}
+
+  /* Drag handles */
+  .drag-handle{position:absolute;width:14px;height:14px;background:#7c5cfc;border:2px solid #fff;border-radius:50%;z-index:4;cursor:grab;box-shadow:0 2px 6px rgba(0,0,0,.3)}
+  .drag-handle.top-h{top:62px;left:50%;transform:translateX(-50%)}
+  .drag-handle.bottom-h{bottom:62px;left:50%;transform:translateX(-50%)}
+  .drag-handle.left-h{left:62px;top:50%;transform:translateY(-50%)}
+  .drag-handle.right-h{right:62px;top:50%;transform:translateY(-50%)}
+
+  .extend-toolbar{position:absolute;bottom:16px;left:50%;transform:translateX(-50%);display:flex;gap:8px;z-index:5}
+
+  /* Preview mode - expanded image */
+  .preview-canvas{flex:1;display:flex;align-items:center;justify-content:center;padding:24px}
+  .expanded-img{width:560px;height:380px;border-radius:12px;overflow:hidden;position:relative;box-shadow:0 4px 24px rgba(0,0,0,.1)}
+  .expanded-img .original-area{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:320px;height:240px;background:linear-gradient(145deg,#fbbf24 0%,#f59e0b 30%,#d97706 100%);display:flex;align-items:center;justify-content:center;z-index:2}
+  .expanded-img .original-area .product{width:100px;height:130px;background:rgba(255,255,255,.25);border-radius:8px;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:2px}
+  .expanded-img .original-area .product .p-icon{font-size:28px}
+  .expanded-img .original-area .product .p-label{font-size:9px;color:rgba(255,255,255,.8);font-weight:600}
+  .expanded-img .fill-area{position:absolute;inset:0;background:linear-gradient(145deg,#fcd34d 0%,#fbbf24 40%,#f59e0b 100%);z-index:1;opacity:.7}
+  .expanded-img .gen-badge{position:absolute;top:12px;right:12px;background:rgba(0,0,0,.6);color:#fff;font-size:10px;font-weight:600;padding:4px 10px;border-radius:6px;z-index:3;display:flex;align-items:center;gap:4px}
+
+  .preview-toolbar{display:flex;align-items:center;justify-content:center;gap:10px;padding:12px 20px;border-top:1px solid #eee;background:#fff}
+
+  .empty-preview{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;color:#aaa;gap:8px;padding:40px}
+  .empty-preview svg{width:48px;height:48px;opacity:.3}
+  .empty-preview span{font-size:13px}
+
+  /* trigger chip */
+  .trigger-chip{display:inline-flex;align-items:center;gap:5px;background:#f3f0ff;border:1px solid #e0d9fc;border-radius:8px;padding:4px 10px;font-size:11px;color:#6d28d9;font-weight:500;margin-top:6px}
+  .trigger-chip svg{width:12px;height:12px}
+
+  ::-webkit-scrollbar{width:5px}::-webkit-scrollbar-thumb{background:#d1d5db;border-radius:10px}
+</style>
+</head>
+<body>
+
+<div class="screen-nav">
+  <span class="label">SCREENS:</span>
+  <button class="active" onclick="showScreen('s1',this)">1. Select Area</button>
+  <button onclick="showScreen('s2',this)">2. Extending</button>
+  <button onclick="showScreen('s3',this)">3. Result</button>
+</div>
+
+<div class="screens-wrapper">
+
+<!-- ═════════════════════════════════════════════ -->
+<!-- SCREEN 1: Extend mode — select area          -->
+<!-- ═════════════════════════════════════════════ -->
+<div class="screen active" id="s1">
+<div class="frame">
+  <div class="topbar">
+    <div class="topbar-left"><div class="logo">Ask <span class="badge">AI</span></div><div class="topbar-title">Expand Image</div></div>
+    <div class="topbar-right">
+      <button class="tab-btn" onclick="switchTab('s1','activity',this)">Activity</button>
+      <button class="tab-btn active" onclick="switchTab('s1','preview',this)">Preview</button>
+      <span class="icon-btn">+</span><span class="icon-btn">&times;</span>
+    </div>
+  </div>
+  <div class="layout">
+    <div class="panel-left">
+      <div class="chat-body">
+        <div class="msg user">
+          <div class="bubble">
+            Expand image
+            <div class="trigger-chip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg> Right-click &rarr; Expand image</div>
+          </div>
+        </div>
+        <div class="plan-box">
+          <div class="plan-header"><div class="p-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/></svg>Plan of action</div><div class="p-count">1 / 3</div></div>
+          <div class="plan-steps">
+            <div class="plan-step"><div class="ck done"><svg width="10" height="10" fill="none" stroke="#fff" stroke-width="2.5" viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg></div><span class="tx done-t">Open Image AI expand canvas</span></div>
+            <div class="plan-step"><div class="ck active"><div></div></div><span class="tx active-t">Select expansion area</span></div>
+            <div class="plan-step"><div class="ck pending"></div><span class="tx">Generate extended image</span></div>
+          </div>
+        </div>
+        <div class="msg ai"><div class="avatar">R</div><div class="bubble">Image expansion opened. Drag the handles to select how much you want to extend in each direction, then click <b>Extend</b>.</div></div>
+        <div class="status-bar awaiting">
+          <div class="s-icon"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg></div>
+          Drag handles to set expansion area
+        </div>
+      </div>
+      <div class="chat-input-area"><div class="chat-input"><span style="font-size:15px;opacity:.4;cursor:pointer">&#128206;</span><input type="text" placeholder="Ask AI..."><button class="send">&#9654;</button></div></div>
+    </div>
+    <div class="panel-right">
+      <!-- Activity -->
+      <div class="rp-view" data-screen="s1" data-tab="activity">
+        <div class="ap">
+          <div class="le">
+            <div class="li det">&#9889;</div>
+            <div class="lb">
+              <div class="ll det-l">Classifier</div>
+              <div class="lt">Detected <b>"Expand image"</b> via right-click action &rarr; direct tool invocation</div>
+              <div class="lc" style="background:#fffbeb;border-color:#fde68a">
+                <div class="kv"><span class="k">Trigger</span><span class="v">Right-click context menu</span></div>
+                <div class="kv"><span class="k">Tool</span><span class="v"><code>extendImage</code></span></div>
+              </div>
+            </div>
+          </div>
+          <div class="le">
+            <div class="li ok">&#10003;</div>
+            <div class="lb">
+              <div class="ll tl-l">extendImage &mdash; Phase 1</div>
+              <div class="lt">Called with width=0, height=0 &rarr; opened interactive extend canvas</div>
+              <div class="lc">
+                <div class="kv"><span class="k">Image</span><span class="v"><code>canvasExport/a3f2...png</code></span></div>
+                <div class="kv"><span class="k">Mode</span><span class="v">extend (interactive)</span></div>
+                <div class="kv"><span class="k">Status</span><span class="v" style="color:#16a34a;font-weight:600">Artifact opened</span></div>
+              </div>
+            </div>
+          </div>
+          <div class="le">
+            <div class="li art">&#9679;</div>
+            <div class="lb">
+              <div class="ll art-l">Image AI Artifact</div>
+              <div class="lt">Extend Image &mdash; awaiting user area selection</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <!-- Preview: Extend canvas -->
+      <div class="rp-view active" data-screen="s1" data-tab="preview">
+        <div class="art-header">
+          <div class="art-type"><span class="atb img">Image AI</span><span class="art-title">Extend Image</span></div>
+          <div style="font-size:11px;color:#888">Drag handles to set expansion &middot; 1080 &times; 1080</div>
+        </div>
+        <div class="img-canvas">
+          <div class="extend-canvas">
+            <div class="extend-guide top"></div>
+            <div class="extend-guide bottom"></div>
+            <div class="extend-guide left"></div>
+            <div class="extend-guide right"></div>
+            <div class="extend-label t-label">+120px</div>
+            <div class="extend-label b-label">+120px</div>
+            <div class="extend-label l-label">+80px</div>
+            <div class="extend-label r-label">+80px</div>
+            <div class="drag-handle top-h"></div>
+            <div class="drag-handle bottom-h"></div>
+            <div class="drag-handle left-h"></div>
+            <div class="drag-handle right-h"></div>
+            <div class="extend-inner-img">
+              <div class="product"><div class="p-icon">&#127871;</div><div class="p-label">Product Shot</div></div>
+            </div>
+            <div class="extend-toolbar">
+              <button class="btn outline" style="background:rgba(255,255,255,.9);font-size:11px;padding:5px 12px">Reset</button>
+              <button class="btn primary" style="font-size:11px;padding:5px 16px">&#10024; Extend</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+
+<!-- ═════════════════════════════════════════════ -->
+<!-- SCREEN 2: Extending (processing)             -->
+<!-- ═════════════════════════════════════════════ -->
+<div class="screen" id="s2">
+<div class="frame">
+  <div class="topbar">
+    <div class="topbar-left"><div class="logo">Ask <span class="badge">AI</span></div><div class="topbar-title">Expand Image</div></div>
+    <div class="topbar-right">
+      <button class="tab-btn active" onclick="switchTab('s2','activity',this)">Activity</button>
+      <button class="tab-btn" onclick="switchTab('s2','preview',this)">Preview</button>
+      <span class="icon-btn">+</span><span class="icon-btn">&times;</span>
+    </div>
+  </div>
+  <div class="layout">
+    <div class="panel-left">
+      <div class="chat-body">
+        <div class="msg user">
+          <div class="bubble">Expand image
+            <div class="trigger-chip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg> Right-click &rarr; Expand image</div>
+          </div>
+        </div>
+        <div class="plan-box">
+          <div class="plan-header"><div class="p-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/></svg>Plan of action</div><div class="p-count">2 / 3</div></div>
+          <div class="plan-steps">
+            <div class="plan-step"><div class="ck done"><svg width="10" height="10" fill="none" stroke="#fff" stroke-width="2.5" viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg></div><span class="tx done-t">Open Image AI expand canvas</span></div>
+            <div class="plan-step"><div class="ck done"><svg width="10" height="10" fill="none" stroke="#fff" stroke-width="2.5" viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg></div><span class="tx done-t">Select expansion area</span></div>
+            <div class="plan-step"><div class="ck active"><div></div></div><span class="tx active-t">Generate extended image</span></div>
+          </div>
+        </div>
+        <div class="msg ai"><div class="avatar">R</div><div class="bubble">Extending image with ClipDrop AI... This may take a few seconds.</div></div>
+        <div class="status-bar running">
+          <div class="s-icon"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5"><path d="M12 2v4m0 12v4M4.93 4.93l2.83 2.83m8.48 8.48l2.83 2.83M2 12h4m12 0h4M4.93 19.07l2.83-2.83m8.48-8.48l2.83-2.83"/></svg></div>
+          Running <b>extendImage</b> via ClipDrop...
+        </div>
+      </div>
+      <div class="chat-input-area"><div class="chat-input"><span style="font-size:15px;opacity:.4;cursor:pointer">&#128206;</span><input type="text" placeholder="Ask AI..."><button class="send">&#9654;</button></div></div>
+    </div>
+    <div class="panel-right">
+      <!-- Activity -->
+      <div class="rp-view active" data-screen="s2" data-tab="activity">
+        <div class="ap">
+          <div class="le">
+            <div class="li det">&#9889;</div>
+            <div class="lb">
+              <div class="ll det-l">Classifier</div>
+              <div class="lt">Detected <b>"Expand image"</b> &rarr; direct tool invocation</div>
+            </div>
+          </div>
+          <div class="le">
+            <div class="li ok">&#10003;</div>
+            <div class="lb">
+              <div class="ll tl-l">extendImage &mdash; Phase 1</div>
+              <div class="lt">Opened interactive extend canvas (mode: extend)</div>
+            </div>
+          </div>
+          <div class="le">
+            <div class="li ok">&#10003;</div>
+            <div class="lb">
+              <div class="ll ok-l">User Selection</div>
+              <div class="lt">Area selected: +120px top/bottom, +80px left/right</div>
+              <div class="lc">
+                <div class="kv"><span class="k">Target</span><span class="v">1240 &times; 1320 (from 1080 &times; 1080)</span></div>
+                <div class="kv"><span class="k">Padding</span><span class="v">top: 120, bottom: 120, left: 80, right: 80</span></div>
+              </div>
+            </div>
+          </div>
+          <div class="le">
+            <div class="li spin"></div>
+            <div class="lb">
+              <div class="ll tl-l">extendImage &mdash; Phase 2</div>
+              <div class="lt">Generating extended image via ClipDrop API</div>
+              <div class="lc">
+                <div class="kv"><span class="k">Width</span><span class="v">1240px</span></div>
+                <div class="kv"><span class="k">Height</span><span class="v">1320px</span></div>
+                <div class="kv"><span class="k">API</span><span class="v">ClipDrop outpainting</span></div>
+                <div class="kv"><span class="k">Status</span><span class="v" style="color:#3b82f6;font-weight:600">Processing...</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <!-- Preview (loading) -->
+      <div class="rp-view" data-screen="s2" data-tab="preview">
+        <div class="art-header">
+          <div class="art-type"><span class="atb img">Image AI</span><span class="art-title">Extend Image</span></div>
+        </div>
+        <div class="empty-preview">
+          <div class="li spin" style="width:40px;height:40px;border-width:3px"></div>
+          <span style="margin-top:8px">Generating extended image...</span>
+          <span style="font-size:11px;color:#bbb">ClipDrop outpainting &middot; 1240 &times; 1320</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+
+<!-- ═════════════════════════════════════════════ -->
+<!-- SCREEN 3: Result (expanded image)            -->
+<!-- ═════════════════════════════════════════════ -->
+<div class="screen" id="s3">
+<div class="frame">
+  <div class="topbar">
+    <div class="topbar-left"><div class="logo">Ask <span class="badge">AI</span></div><div class="topbar-title">Expand Image</div></div>
+    <div class="topbar-right">
+      <button class="tab-btn" onclick="switchTab('s3','activity',this)">Activity</button>
+      <button class="tab-btn active" onclick="switchTab('s3','preview',this)">Preview</button>
+      <span class="icon-btn">+</span><span class="icon-btn">&times;</span>
+    </div>
+  </div>
+  <div class="layout">
+    <div class="panel-left">
+      <div class="chat-body">
+        <div class="msg user">
+          <div class="bubble">Expand image
+            <div class="trigger-chip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg> Right-click &rarr; Expand image</div>
+          </div>
+        </div>
+        <div class="plan-box">
+          <div class="plan-header"><div class="p-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/></svg>Plan of action</div><div class="p-count">3 / 3</div></div>
+          <div class="plan-steps">
+            <div class="plan-step"><div class="ck done"><svg width="10" height="10" fill="none" stroke="#fff" stroke-width="2.5" viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg></div><span class="tx done-t">Open Image AI expand canvas</span></div>
+            <div class="plan-step"><div class="ck done"><svg width="10" height="10" fill="none" stroke="#fff" stroke-width="2.5" viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg></div><span class="tx done-t">Select expansion area</span></div>
+            <div class="plan-step"><div class="ck done"><svg width="10" height="10" fill="none" stroke="#fff" stroke-width="2.5" viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg></div><span class="tx done-t">Generate extended image</span></div>
+          </div>
+        </div>
+        <div class="msg ai"><div class="avatar">R</div><div class="bubble"><b>Image extended successfully.</b> The expanded image has been uploaded. You can apply it to your canvas or iterate further.</div></div>
+        <div class="status-bar success">
+          <div class="s-icon"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5"><path d="M20 6L9 17l-5-5"/></svg></div>
+          Extended to 1240 &times; 1320
+        </div>
+      </div>
+      <div class="chat-input-area"><div class="chat-input"><span style="font-size:15px;opacity:.4;cursor:pointer">&#128206;</span><input type="text" placeholder="Ask AI..."><button class="send">&#9654;</button></div></div>
+    </div>
+    <div class="panel-right">
+      <!-- Activity -->
+      <div class="rp-view" data-screen="s3" data-tab="activity">
+        <div class="ap">
+          <div class="le">
+            <div class="li det">&#9889;</div>
+            <div class="lb">
+              <div class="ll det-l">Classifier</div>
+              <div class="lt">Detected <b>"Expand image"</b> &rarr; direct tool invocation</div>
+            </div>
+          </div>
+          <div class="le">
+            <div class="li ok">&#10003;</div>
+            <div class="lb">
+              <div class="ll tl-l">extendImage &mdash; Phase 1</div>
+              <div class="lt">Opened interactive extend canvas</div>
+            </div>
+          </div>
+          <div class="le">
+            <div class="li ok">&#10003;</div>
+            <div class="lb">
+              <div class="ll ok-l">User Selection</div>
+              <div class="lt">+120px top/bottom, +80px left/right</div>
+            </div>
+          </div>
+          <div class="le">
+            <div class="li ok">&#10003;</div>
+            <div class="lb">
+              <div class="ll tl-l">extendImage &mdash; Phase 2</div>
+              <div class="lt">Extended via ClipDrop and uploaded to S3</div>
+              <div class="lc">
+                <div class="kv"><span class="k">Output</span><span class="v">1240 &times; 1320</span></div>
+                <div class="kv"><span class="k">S3 URL</span><span class="v"><code>images/extended_17721...png</code></span></div>
+                <div class="kv"><span class="k">Mode</span><span class="v">preview</span></div>
+              </div>
+            </div>
+          </div>
+          <div class="le">
+            <div class="li art">&#9679;</div>
+            <div class="lb">
+              <div class="ll art-l">Artifact Updated</div>
+              <div class="lt">IMAGE_GENERATION &mdash; Magic canvas (preview mode)</div>
+            </div>
+          </div>
+          <div class="le">
+            <div class="li ok" style="background:#7c5cfc;color:#fff">&#10003;</div>
+            <div class="lb">
+              <div class="ll ok-l">Complete</div>
+              <div class="lt">Image extended &mdash; ready to apply to canvas</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <!-- Preview: Extended result -->
+      <div class="rp-view active" data-screen="s3" data-tab="preview">
+        <div class="art-header">
+          <div class="art-type"><span class="atb done">Done</span><span class="art-title">Extended Image &mdash; 1240 &times; 1320</span></div>
+          <div style="font-size:11px;color:#888">Original: 1080 &times; 1080</div>
+        </div>
+        <div class="preview-canvas">
+          <div class="expanded-img">
+            <div class="fill-area"></div>
+            <div class="original-area">
+              <div class="product"><div class="p-icon">&#127871;</div><div class="p-label">Product Shot</div></div>
+            </div>
+            <div class="gen-badge">&#10024; AI Extended</div>
+          </div>
+        </div>
+        <div class="preview-toolbar">
+          <button class="btn outline">&#8634; Regenerate</button>
+          <button class="btn outline">&#8644; Extend More</button>
+          <button class="btn green">&#10003; Apply to Canvas</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+
+</div>
+
+<script>
+function showScreen(id, btn) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  document.querySelectorAll('.screen-nav button').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+}
+function switchTab(screenId, tab, btn) {
+  btn.closest('.topbar-right').querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  document.querySelectorAll(`.rp-view[data-screen="${screenId}"]`).forEach(v => {
+    v.classList.toggle('active', v.dataset.tab === tab);
+  });
+}
+</script>
+</body>
+</html>
